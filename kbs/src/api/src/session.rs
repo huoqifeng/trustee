@@ -11,21 +11,11 @@ use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
 use kbs_types::{Challenge, Request};
 use log::warn;
-use rand::{thread_rng, Rng};
+// use rand::{thread_rng, Rng};
 use semver::Version;
 use uuid::Uuid;
 
 pub(crate) static KBS_SESSION_ID: &str = "kbs-session-id";
-
-fn nonce() -> Result<String> {
-    let mut nonce: Vec<u8> = vec![0; 32];
-
-    thread_rng()
-        .try_fill(&mut nonce[..])
-        .map_err(anyhow::Error::from)?;
-
-    Ok(STANDARD.encode(&nonce))
-}
 
 /// Finite State Machine model for RCAR handshake
 pub(crate) enum SessionStatus {
@@ -63,7 +53,7 @@ macro_rules! impl_member {
 }
 
 impl SessionStatus {
-    pub fn auth(request: Request, timeout: i64) -> Result<Self> {
+    pub fn auth(request: Request, timeout: i64, challenge: &Challenge) -> Result<Self> {
         let version = Version::parse(&request.version).map_err(anyhow::Error::from)?;
         if !crate::VERSION_REQ.matches(&version) {
             bail!("Invalid Request version {}", request.version);
@@ -74,10 +64,7 @@ impl SessionStatus {
 
         Ok(Self::Authed {
             request,
-            challenge: Challenge {
-                nonce: nonce()?,
-                extra_params: String::new(),
-            },
+            challenge,
             id,
             timeout,
         })

@@ -29,7 +29,7 @@ clap = { version = "4", features = ["derive"] }
 config = "0.13.3"
 env_logger = "0.10.0"
 hex = "0.4.3"
-kbs-types = "0.5.3"
+kbs-types = "0.5.3" // TODO, update to pick new TEE type for IBM Secure Eexcution (SE) in https://github.com/virtee/kbs-types/blob/main/src/lib.rs#L24
 jsonwebtoken = "9"
 log = "0.4.17"
 prost = "0.11.0"
