@@ -11,39 +11,39 @@ pub struct FakeSeAttest {}
 
 #[async_trait::async_trait]
 pub trait SeFakeVerifier {
-    async fn create(
+    async fn create<'a, 'b, 'c>(
         &self,
-        hkdFiles: Vec<String>,
-        certFile: &String,
-        signingFile: &String,
-        arpkFile: &String
+        _hkd_files: Vec<String>,
+        _cert_file: &'a str,
+        _signing_file: &'b str,
+        _arpk_file: &'c str,
     ) -> Result<Vec<u8>>;
 
-    async fn verify(
+    async fn verify<'a, 'b>(
         &self,
-        evidence: Vec<u8>,
-        arpkFile: &String,
-        hdr: Vec<u8>
+        _evidence: &[u8],
+        _arpk_file: &'a str,
+        _hdr_file: &'b str,
     ) -> Result<Vec<u8>>;
 }
 
 #[async_trait::async_trait]
 impl SeFakeVerifier for FakeSeAttest {
-    async fn create(
+    async fn create<'a, 'b, 'c>(
         &self,
-        hkdFiles: Vec<String>,
-        certFile: &String,
-        signingFile: &String,
-        arpkFile: &String
+        _hkd_files: Vec<String>,
+        _cert_file: &'a str,
+        _signing_file: &'b str,
+        _arpk_file: &'c str,
     ) -> Result<Vec<u8>> {
         Result::Ok(Vec::new())
     }
 
-    async fn verify(
+    async fn verify<'a, 'b>(
         &self,
-        evidence: Vec<u8>,
-        arpkFile: &String,
-        hdr: Vec<u8>
+        _evidence: &[u8],
+        _arpk_file: &'a str,
+        _hkd_files: &'b str,
     ) -> Result<Vec<u8>> {
         Result::Ok(Vec::new())
     }

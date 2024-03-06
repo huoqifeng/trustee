@@ -3,12 +3,11 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use super::*;
 use async_trait::async_trait;
 use anyhow::anyhow;
 use base64::prelude::*;
-use kbs_types::{Challenge, Tee};
 use crate::{InitDataHash, ReportData};
-use super::{TeeEvidenceParsedClaim, Verifier};
 use crate::se::seattest::FakeSeAttest;
 use crate::se::seattest::SeFakeVerifier;
 
@@ -25,38 +24,46 @@ impl Verifier for SeVerifier {
         expected_report_data: &ReportData,
         expected_init_data_hash: &InitDataHash,
     ) -> Result<TeeEvidenceParsedClaim> {
+
         verify_evidence(evidence, expected_report_data, expected_init_data_hash)
         .await
         .map_err(|e| anyhow!("Se Verifier: {:?}", e))
     }
 
-    async fn generate_challenge(&self, tee: Tee, nonce: &str) -> Result<Challenge> {
-        /// TODO replace FakeSeAttest with real crate
+    async fn generate_challenge_extra_params(
+        &self,
+    ) -> Result<String> {
+
+        // TODO replace FakeSeAttest with real crate
         let attester = FakeSeAttest::default();
 
         let hkds: Vec<String> = vec![String::new(); 2];
-        let certk = String::new();
-        let signk = String::new();
-        let arpk = String::new();
-        Result::Ok(Challenge {
-            nonce,
-            extra_params: BASE64_STANDARD.encode(attester.create(hkds, certk, signk, arpk)),
-        })
+        let certk = "cert_file_path";
+        let signk = "sign_file_path";
+        let arpk = "arpk_file_path";
+
+        let extra_params = attester.create(hkds, certk, signk, arpk)
+                            .await
+                            .context("Create SE attestation request failed: {:?}")?;
+
+        Ok(BASE64_STANDARD.encode(extra_params))
     }
 }
 
 async fn verify_evidence(
     evidence: &[u8],
-    expected_report_data: &ReportData<'_>,
-    expected_init_data_hash: &InitDataHash<'_>,
+    _expected_report_data: &ReportData<'_>,
+    _expected_init_data_hash: &InitDataHash<'_>,
 ) -> Result<TeeEvidenceParsedClaim> {
-    /// TODO replace FakeSeAttest with real crate
+    // TODO replace FakeSeAttest with real crate
     let attester = FakeSeAttest::default();
 
-    let arpk = String::new();
-    let hdr = String::new();
-    let se = attester.verify(evidence, arpk, hdr);
+    let arpk = "arpk_file_path";
+    let hdr = "hdr_file_path";
+    let se = attester.verify(evidence, arpk, hdr)
+                .await
+                .context("Verify SE attestation evidence failed: {:?}")?;
 
-    let v = serde_json::to_value(se?).context("build json value from the se evidence")?;
+    let v = serde_json::to_value(se).context("build json value from the se evidence")?;
     Ok(v as TeeEvidenceParsedClaim)
 }

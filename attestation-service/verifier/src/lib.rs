@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 
 use anyhow::*;
 use async_trait::async_trait;
-use kbs_types::{Challenge, Tee};
+use kbs_types::Tee;
 use log::warn;
 
 pub mod sample;
@@ -106,7 +106,7 @@ pub fn to_verifier(tee: &Tee) -> Result<Box<dyn Verifier + Send + Sync>> {
         Tee::Se => {
             cfg_if::cfg_if! {
                 if #[cfg(feature = "se-verifier")] {
-                    Ok(Box::<se::Se>::default() as Box<dyn Verifier + Send + Sync>)
+                    Ok(Box::<se::SeVerifier>::default() as Box<dyn Verifier + Send + Sync>)
                 } else {
                     bail!("feature `se-verifier` is not enabled for `verifier` crate.")
                 }
@@ -167,14 +167,10 @@ pub trait Verifier {
         expected_init_data_hash: &InitDataHash,
     ) -> Result<TeeEvidenceParsedClaim>;
 
-    async fn generate_challenge(
+    async fn generate_challenge_extra_params(
         &self,
-        nonce: &str) -> Result<Challenge> {
-
-        Result::Ok(Challenge {
-            nonce,
-            extra_params: String::new(),
-        })
+    ) -> Result<String> {
+        Ok(String::new())
     }
 }
 

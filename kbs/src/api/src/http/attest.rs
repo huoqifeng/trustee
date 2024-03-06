@@ -7,21 +7,11 @@ use crate::{raise_error, session::SessionStatus};
 use super::*;
 
 use anyhow::anyhow;
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
 use base64::Engine;
+use kbs_types::Challenge;
 use log::{error, info};
-use rand::{thread_rng, Rng};
 use serde_json::json;
-
-fn nonce() -> Result<String> {
-    let mut nonce: Vec<u8> = vec![0; 32];
-
-    thread_rng()
-        .try_fill(&mut nonce[..])
-        .map_err(anyhow::Error::from)?;
-
-    Ok(STANDARD.encode(&nonce))
-}
 
 /// POST /auth
 pub(crate) async fn auth(
@@ -32,9 +22,12 @@ pub(crate) async fn auth(
 ) -> Result<HttpResponse> {
     info!("request: {:?}", &request);
 
-    let challenge = attestation_service.generate_challenge(nonce()?);
+    let extra_params = attestation_service
+        .generate_challenge_extra_params(request.tee)
+        .await
+        .unwrap();
 
-    let session = SessionStatus::auth(request.0, **timeout, challenge)
+    let session = SessionStatus::auth(request.0, **timeout, extra_params)
         .map_err(|e| Error::FailedAuthentication(format!("Session: {e}")))?;
 
     let response = HttpResponse::Ok()

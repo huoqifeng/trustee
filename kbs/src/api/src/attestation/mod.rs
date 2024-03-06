@@ -10,7 +10,7 @@ use attestation_service::config::Config as AsConfig;
 use coco::grpc::*;
 #[cfg(feature = "intel-trust-authority-as")]
 use intel_trust_authority::*;
-use kbs_types::{Challenge, Request, Tee};
+use kbs_types::Tee;
 
 #[cfg(feature = "coco-as")]
 #[allow(missing_docs)]
@@ -34,7 +34,7 @@ pub trait Attest: Send + Sync {
     async fn verify(&self, tee: Tee, nonce: &str, attestation: &str) -> Result<String>;
 
     /// generate the challenge payload to pass to attester based on Tee and nonce
-    async fn generate_challenge(&self, tee: Tee, nonce: &str) -> Result<Challenge>;
+    async fn generate_challenge_extra_params(&self, tee: Tee) -> Result<String>;
 }
 
 /// Attestation Service
@@ -93,14 +93,18 @@ impl AttestationService {
         }
     }
 
-    pub async fn generate_challenge(&self, tee: Tee, nonce: &str) -> Result<Challenge> {
+    pub async fn generate_challenge_extra_params(&self, tee: Tee) -> Result<String> {
         match self {
             #[cfg(feature = "coco-as-grpc")]
-            AttestationService::CoCoASgRPC(inner) => inner.generate_challenge(tee, nonce).await,
+            AttestationService::CoCoASgRPC(inner) => {
+                inner.generate_challenge_extra_params(tee).await
+            }
             #[cfg(any(feature = "coco-as-builtin", feature = "coco-as-builtin-no-verifier"))]
-            AttestationService::CoCoASBuiltIn(inner) => inner.generate_challenge(tee, nonce, attestation).await,
+            AttestationService::CoCoASBuiltIn(inner) => {
+                inner.generate_challenge_extra_params(tee).await
+            }
             #[cfg(feature = "intel-trust-authority-as")]
-            AttestationService::IntelTA(inner) => inner.generate_challenge(tee, nonce).await,
+            AttestationService::IntelTA(inner) => inner.generate_challenge_extra_params(tee).await,
         }
     }
 }

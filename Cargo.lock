@@ -412,7 +412,7 @@ dependencies = [
  "env_logger 0.10.2",
  "jsonwebtoken",
  "jwt-simple",
- "kbs-types",
+ "kbs-types 0.5.3 (git+https://github.com/huoqifeng/kbs-types.git?branch=s390x-se)",
  "lazy_static",
  "log",
  "mobc",
@@ -535,7 +535,7 @@ dependencies = [
  "env_logger 0.10.2",
  "futures",
  "hex",
- "kbs-types",
+ "kbs-types 0.5.3 (git+https://github.com/huoqifeng/kbs-types.git?branch=s390x-se)",
  "lazy_static",
  "log",
  "openssl",
@@ -575,7 +575,7 @@ dependencies = [
  "csv-rs",
  "hyper",
  "hyper-tls",
- "kbs-types",
+ "kbs-types 0.5.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "log",
  "nix",
  "occlum_dcap",
@@ -1283,7 +1283,7 @@ dependencies = [
  "anyhow",
  "base64 0.21.7",
  "ctr",
- "kbs-types",
+ "kbs-types 0.5.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand",
  "rsa 0.9.6",
  "serde",
@@ -2430,6 +2430,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "kbs-types"
+version = "0.5.3"
+source = "git+https://github.com/huoqifeng/kbs-types.git?branch=s390x-se#681d9ea3bea0e4465d67f004234f628dbced1007"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "kbs_protocol"
 version = "0.1.0"
 source = "git+https://github.com/confidential-containers/guest-components.git?rev=21b2c536b4d6c5c1442b53916c908b54dde136e8#21b2c536b4d6c5c1442b53916c908b54dde136e8"
@@ -2440,7 +2449,7 @@ dependencies = [
  "base64 0.21.7",
  "crypto",
  "jwt-simple",
- "kbs-types",
+ "kbs-types 0.5.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "log",
  "reqwest",
  "resource_uri",
@@ -5276,7 +5285,7 @@ dependencies = [
  "eventlog-rs",
  "hex",
  "jsonwebtoken",
- "kbs-types",
+ "kbs-types 0.5.3 (git+https://github.com/huoqifeng/kbs-types.git?branch=s390x-se)",
  "log",
  "openssl",
  "rstest",
