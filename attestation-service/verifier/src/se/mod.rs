@@ -7,6 +7,7 @@ use super::*;
 use async_trait::async_trait;
 use anyhow::anyhow;
 use base64::prelude::*;
+use serde_json::json;
 use crate::{InitDataHash, ReportData};
 use crate::se::seattest::FakeSeAttest;
 use crate::se::seattest::SeFakeVerifier;
@@ -64,6 +65,11 @@ async fn verify_evidence(
                 .await
                 .context("Verify SE attestation evidence failed: {:?}")?;
 
-    let v = serde_json::to_value(se).context("build json value from the se evidence")?;
-    Ok(v as TeeEvidenceParsedClaim)
+    let claims_map = json!({
+        "serial_number": format!("{}", "SE-ID"),
+        "measurement": format!("{}", BASE64_STANDARD.encode(se.clone())),
+        "report_data": format!("{}", BASE64_STANDARD.encode(se.clone())),
+    });
+
+    Ok(claims_map as TeeEvidenceParsedClaim)
 }
