@@ -36,7 +36,7 @@ impl SeFakeVerifier for FakeSeAttest {
         _signing_file: &'b str,
         _arpk_file: &'c str,
     ) -> Result<Vec<u8>> {
-        Result::Ok(Vec::new())
+        Result::Ok("test".as_bytes().to_vec())
     }
 
     async fn verify<'a, 'b>(
@@ -45,6 +45,6 @@ impl SeFakeVerifier for FakeSeAttest {
         _arpk_file: &'a str,
         _hkd_files: &'b str,
     ) -> Result<Vec<u8>> {
-        Result::Ok(Vec::new())
+        Result::Ok("test".as_bytes().to_vec())
     }
 }
