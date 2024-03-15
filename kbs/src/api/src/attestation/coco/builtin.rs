@@ -29,7 +29,7 @@ impl Attest for BuiltInCoCoAs {
         let attestation: Attestation = serde_json::from_str(attestation)?;
 
         // TODO: align with the guest-components/kbs-protocol side.
-        let runtime_data_plaintext = json!({"tee-pubkey": attestation.tee_pubkey, "nonce": nonce});
+        let runtime_data_plaintext = json!({"tee-pubkey": attestation.tee_pubkey, "nonce": nonce, "extra-params": attestation.extra_params});
 
         self.inner
             .read()

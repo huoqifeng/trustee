@@ -412,7 +412,7 @@ dependencies = [
  "env_logger 0.10.2",
  "jsonwebtoken",
  "jwt-simple",
- "kbs-types 0.5.3 (git+https://github.com/huoqifeng/kbs-types.git?branch=s390x-se)",
+ "kbs-types",
  "lazy_static",
  "log",
  "mobc",
@@ -535,7 +535,7 @@ dependencies = [
  "env_logger 0.10.2",
  "futures",
  "hex",
- "kbs-types 0.5.3 (git+https://github.com/huoqifeng/kbs-types.git?branch=s390x-se)",
+ "kbs-types",
  "lazy_static",
  "log",
  "openssl",
@@ -564,7 +564,7 @@ dependencies = [
 [[package]]
 name = "attester"
 version = "0.1.0"
-source = "git+https://github.com/confidential-containers/guest-components.git?rev=21b2c536b4d6c5c1442b53916c908b54dde136e8#21b2c536b4d6c5c1442b53916c908b54dde136e8"
+source = "git+https://github.com/huoqifeng/guest-components.git?rev=cca0fcb0bae3ad0259efabbb84f3e33c986e1675#cca0fcb0bae3ad0259efabbb84f3e33c986e1675"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -575,7 +575,7 @@ dependencies = [
  "csv-rs",
  "hyper",
  "hyper-tls",
- "kbs-types 0.5.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "kbs-types",
  "log",
  "nix",
  "occlum_dcap",
@@ -583,6 +583,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sev",
+ "sha2",
  "strum",
  "tdx-attest-rs",
  "tempfile",
@@ -1277,13 +1278,13 @@ checksum = "7a81dae078cea95a014a339291cec439d2f232ebe854a9d672b796c6afafa9b7"
 [[package]]
 name = "crypto"
 version = "0.1.0"
-source = "git+https://github.com/confidential-containers/guest-components.git?rev=21b2c536b4d6c5c1442b53916c908b54dde136e8#21b2c536b4d6c5c1442b53916c908b54dde136e8"
+source = "git+https://github.com/huoqifeng/guest-components.git?rev=cca0fcb0bae3ad0259efabbb84f3e33c986e1675#cca0fcb0bae3ad0259efabbb84f3e33c986e1675"
 dependencies = [
  "aes-gcm",
  "anyhow",
  "base64 0.21.7",
  "ctr",
- "kbs-types 0.5.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "kbs-types",
  "rand",
  "rsa 0.9.6",
  "serde",
@@ -2422,17 +2423,7 @@ dependencies = [
 [[package]]
 name = "kbs-types"
 version = "0.5.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d1f4b0642769e12f56cfc646d8be13668ed48d3caed0e99efb161c407f3ec532"
-dependencies = [
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "kbs-types"
-version = "0.5.3"
-source = "git+https://github.com/huoqifeng/kbs-types.git?branch=s390x-se#681d9ea3bea0e4465d67f004234f628dbced1007"
+source = "git+https://github.com/huoqifeng/kbs-types.git?branch=s390x-se#271ef4bac54035fb25fa44b24e5bbca844cd057c"
 dependencies = [
  "serde",
  "serde_json",
@@ -2441,7 +2432,7 @@ dependencies = [
 [[package]]
 name = "kbs_protocol"
 version = "0.1.0"
-source = "git+https://github.com/confidential-containers/guest-components.git?rev=21b2c536b4d6c5c1442b53916c908b54dde136e8#21b2c536b4d6c5c1442b53916c908b54dde136e8"
+source = "git+https://github.com/huoqifeng/guest-components.git?rev=cca0fcb0bae3ad0259efabbb84f3e33c986e1675#cca0fcb0bae3ad0259efabbb84f3e33c986e1675"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2449,7 +2440,7 @@ dependencies = [
  "base64 0.21.7",
  "crypto",
  "jwt-simple",
- "kbs-types 0.5.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "kbs-types",
  "log",
  "reqwest",
  "resource_uri",
@@ -3702,7 +3693,7 @@ dependencies = [
 [[package]]
 name = "resource_uri"
 version = "0.1.0"
-source = "git+https://github.com/confidential-containers/guest-components.git?rev=21b2c536b4d6c5c1442b53916c908b54dde136e8#21b2c536b4d6c5c1442b53916c908b54dde136e8"
+source = "git+https://github.com/huoqifeng/guest-components.git?rev=cca0fcb0bae3ad0259efabbb84f3e33c986e1675#cca0fcb0bae3ad0259efabbb84f3e33c986e1675"
 dependencies = [
  "anyhow",
  "serde",
@@ -5285,7 +5276,7 @@ dependencies = [
  "eventlog-rs",
  "hex",
  "jsonwebtoken",
- "kbs-types 0.5.3 (git+https://github.com/huoqifeng/kbs-types.git?branch=s390x-se)",
+ "kbs-types",
  "log",
  "openssl",
  "rstest",

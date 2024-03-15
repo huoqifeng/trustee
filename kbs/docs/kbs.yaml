@@ -212,12 +212,18 @@ components:
       required:
         - tee-pubkey
         - tee-evidence
+        - extra-params
       type: object
       properties:
         tee-pubkey:
           $ref: '#/components/schemas/PublicKey'
         tee-evidence:
           description: HW-TEE specific attestation evidence.
+          type: object
+        extra-params:
+          description:
+            Freely formatted JSON object used for HW-TEE specific attestation
+            processes.
           type: object
       description: >-
         KBS attestation challenge, sent in response to the KBC Request.
