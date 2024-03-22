@@ -4,6 +4,5 @@
     "k-mod": "my_modulus",
     "k-exp": "my_exponent"
   },
-  "tee-evidence": "my_evidence",
-  "extra-params": "my_extra_params"
+  "tee-evidence": "my_evidence"
 }

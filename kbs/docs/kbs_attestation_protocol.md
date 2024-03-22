@@ -147,8 +147,6 @@ evidence from the HW-TEE platform and organizes it into the following payload:
 
     /* The attestation evidence. Its format is specified by Attestation-Service. */
     "tee-evidence": {}
-    /* Extra parameters to support some special HW-TEE attestation. */
-    "extra-params": {}
 }
 ```
 > **Note:** the `/*...*/` comments are not valid in JSON, and must not be used.
@@ -179,11 +177,6 @@ Attestation-Service.
 
 The KBS does not parse or analyze the attestation evidence, it forwards it to
 the Attestation-Service for verification.
-
-- `extra-params`
-
-The reserved extra parameter field which is used to pass the additional
-information provided by the KBS when some specific HW-TEE needs to be attested.
 
 ## `Response`
 

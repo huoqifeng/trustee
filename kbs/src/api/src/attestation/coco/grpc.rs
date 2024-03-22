@@ -102,7 +102,7 @@ impl Attest for GrpcClientPool {
         let attestation: Attestation = serde_json::from_str(attestation)?;
 
         // TODO: align with the guest-components/kbs-protocol side.
-        let runtime_data_plaintext = json!({"tee-pubkey": attestation.tee_pubkey, "nonce": nonce, "extra-params": attestation.extra_params});
+        let runtime_data_plaintext = json!({"tee-pubkey": attestation.tee_pubkey, "nonce": nonce});
         let runtime_data_plaintext = serde_json::to_string(&runtime_data_plaintext)
             .context("CoCo AS client: serialize runtime data failed")?;
 

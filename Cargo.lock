@@ -564,7 +564,7 @@ dependencies = [
 [[package]]
 name = "attester"
 version = "0.1.0"
-source = "git+https://github.com/huoqifeng/guest-components.git?rev=cca0fcb0bae3ad0259efabbb84f3e33c986e1675#cca0fcb0bae3ad0259efabbb84f3e33c986e1675"
+source = "git+https://github.com/huoqifeng/guest-components.git?rev=f6607ec8ae8209b2448fae24a78565445ac63bf3#f6607ec8ae8209b2448fae24a78565445ac63bf3"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -583,7 +583,6 @@ dependencies = [
  "serde",
  "serde_json",
  "sev",
- "sha2",
  "strum",
  "tdx-attest-rs",
  "tempfile",
@@ -1278,7 +1277,7 @@ checksum = "7a81dae078cea95a014a339291cec439d2f232ebe854a9d672b796c6afafa9b7"
 [[package]]
 name = "crypto"
 version = "0.1.0"
-source = "git+https://github.com/huoqifeng/guest-components.git?rev=cca0fcb0bae3ad0259efabbb84f3e33c986e1675#cca0fcb0bae3ad0259efabbb84f3e33c986e1675"
+source = "git+https://github.com/huoqifeng/guest-components.git?rev=f6607ec8ae8209b2448fae24a78565445ac63bf3#f6607ec8ae8209b2448fae24a78565445ac63bf3"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -2423,7 +2422,7 @@ dependencies = [
 [[package]]
 name = "kbs-types"
 version = "0.5.3"
-source = "git+https://github.com/huoqifeng/kbs-types.git?branch=s390x-se#271ef4bac54035fb25fa44b24e5bbca844cd057c"
+source = "git+https://github.com/virtee/kbs-types.git?rev=e28c20c761378b1e8f5b210c839e3c454f2ec3fb#e28c20c761378b1e8f5b210c839e3c454f2ec3fb"
 dependencies = [
  "serde",
  "serde_json",
@@ -2432,7 +2431,7 @@ dependencies = [
 [[package]]
 name = "kbs_protocol"
 version = "0.1.0"
-source = "git+https://github.com/huoqifeng/guest-components.git?rev=cca0fcb0bae3ad0259efabbb84f3e33c986e1675#cca0fcb0bae3ad0259efabbb84f3e33c986e1675"
+source = "git+https://github.com/huoqifeng/guest-components.git?rev=f6607ec8ae8209b2448fae24a78565445ac63bf3#f6607ec8ae8209b2448fae24a78565445ac63bf3"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3693,7 +3692,7 @@ dependencies = [
 [[package]]
 name = "resource_uri"
 version = "0.1.0"
-source = "git+https://github.com/huoqifeng/guest-components.git?rev=cca0fcb0bae3ad0259efabbb84f3e33c986e1675#cca0fcb0bae3ad0259efabbb84f3e33c986e1675"
+source = "git+https://github.com/huoqifeng/guest-components.git?rev=f6607ec8ae8209b2448fae24a78565445ac63bf3#f6607ec8ae8209b2448fae24a78565445ac63bf3"
 dependencies = [
  "anyhow",
  "serde",
