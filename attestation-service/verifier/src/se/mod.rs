@@ -31,8 +31,9 @@ impl Verifier for SeVerifier {
         .map_err(|e| anyhow!("Se Verifier: {:?}", e))
     }
 
-    async fn generate_challenge_extra_params(
+    async fn generate_challenge(
         &self,
+        _tee_parameters: Option<Vec<u8>>,
     ) -> Result<String> {
 
         // TODO replace FakeSeAttest with real crate

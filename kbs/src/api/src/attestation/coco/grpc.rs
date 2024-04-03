@@ -127,7 +127,11 @@ impl Attest for GrpcClientPool {
         Ok(token)
     }
 
-    async fn generate_challenge_extra_params(&self, _tee: Tee) -> Result<String> {
+    async fn generate_challenge(
+        &self,
+        _tee: Tee,
+        _tee_parameters: Option<Vec<u8>>,
+    ) -> Result<String> {
         Ok(String::new())
     }
 }
