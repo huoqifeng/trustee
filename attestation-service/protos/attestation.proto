@@ -89,8 +89,17 @@ message SetPolicyRequest {
 }
 message SetPolicyResponse {}
 
+message ChallengeRequest {
+    Tee tee           = 1;
+    string tee_params = 2;
+}
+message ChallengeResponse {
+    string attestation_challenge = 1;
+}
+
 service AttestationService {
     rpc AttestationEvaluate(AttestationRequest) returns (AttestationResponse) {};
     rpc SetAttestationPolicy(SetPolicyRequest) returns (SetPolicyResponse) {};
+    rpc GetAttestationChallenge(ChallengeRequest) returns (ChallengeResponse) {};
     // Get the GetPolicyRequest.user and GetPolicyRequest.tee specified Policy(.rego)
 }

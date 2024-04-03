@@ -45,6 +45,12 @@ pub struct AttestationRequest {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct ChallengeRequest {
+    tee: String,
+    tee_params: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 enum Data {
     Raw(String),
@@ -172,4 +178,19 @@ pub async fn set_policy(
         .context("set policy")?;
 
     Ok(HttpResponse::Ok().body(""))
+}
+
+/// This handler uses json extractor
+pub async fn get_challenge(
+    request: web::Json<ChallengeRequest>,
+    cocoas: web::Data<Arc<RwLock<AttestationService>>>,
+) -> Result<HttpResponse> {
+    let tee = to_tee(&request.tee)?;
+    let challenge = cocoas
+        .read()
+        .await
+        .generate_challenge(tee, Some(request.tee_params.clone().into_bytes()))
+        .await
+        .context("generate challenge")?;
+    Ok(HttpResponse::Ok().body(challenge))
 }

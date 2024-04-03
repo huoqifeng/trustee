@@ -14,7 +14,8 @@ use tonic::{Request, Response, Status};
 
 use crate::as_api::attestation_service_server::{AttestationService, AttestationServiceServer};
 use crate::as_api::{
-    AttestationRequest, AttestationResponse, SetPolicyRequest, SetPolicyResponse, Tee as GrpcTee,
+    AttestationRequest, AttestationResponse, ChallengeRequest, ChallengeResponse, SetPolicyRequest,
+    SetPolicyResponse, Tee as GrpcTee,
 };
 
 use crate::rvps_api::reference_value_provider_service_server::{
@@ -185,6 +186,30 @@ impl AttestationService for Arc<RwLock<AttestationServer>> {
         debug!("Attestation Token: {}", &attestation_token);
 
         let res = AttestationResponse { attestation_token };
+        Ok(Response::new(res))
+    }
+
+    async fn get_attestation_challenge(
+        &self,
+        request: Request<ChallengeRequest>,
+    ) -> Result<Response<ChallengeResponse>, Status> {
+        let request: ChallengeRequest = request.into_inner();
+        let tee = to_kbs_tee(
+            GrpcTee::from_i32(request.tee)
+                .ok_or_else(|| Status::aborted(format!("Invalid TEE {}", request.tee)))?,
+        );
+
+        let attestation_challenge = self
+            .read()
+            .await
+            .attestation_service
+            .generate_challenge(tee, Some(request.tee_params.clone().into_bytes()))
+            .await
+            .map_err(|e| Status::aborted(format!("Challenge: {e:?}")))?;
+
+        let res = ChallengeResponse {
+            attestation_challenge,
+        };
         Ok(Response::new(res))
     }
 }

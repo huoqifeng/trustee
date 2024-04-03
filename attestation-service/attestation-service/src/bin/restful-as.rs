@@ -12,7 +12,7 @@ use openssl::{
 use strum::{AsRefStr, EnumString};
 use tokio::sync::RwLock;
 
-use crate::restful::{attestation, set_policy};
+use crate::restful::{attestation, get_challenge, set_policy};
 
 mod restful;
 
@@ -47,6 +47,9 @@ enum WebApi {
 
     #[strum(serialize = "/policy")]
     Policy,
+
+    #[strum(serialize = "/challenge")]
+    Challenge,
 }
 
 #[actix_web::main]
@@ -74,6 +77,7 @@ async fn main() -> Result<()> {
         App::new()
             .service(web::resource(WebApi::Attestation.as_ref()).route(web::post().to(attestation)))
             .service(web::resource(WebApi::Policy.as_ref()).route(web::post().to(set_policy)))
+            .service(web::resource(WebApi::Challenge.as_ref()).route(web::post().to(get_challenge)))
             .app_data(web::Data::clone(&attestation_service))
     });
 

@@ -16,7 +16,7 @@ use tonic::transport::Channel;
 
 use self::attestation::{
     attestation_request::RuntimeData, attestation_service_client::AttestationServiceClient,
-    AttestationRequest, SetPolicyRequest, Tee as GrpcTee,
+    AttestationRequest, ChallengeRequest, SetPolicyRequest, Tee as GrpcTee,
 };
 
 mod attestation {
@@ -129,10 +129,23 @@ impl Attest for GrpcClientPool {
 
     async fn generate_challenge(
         &self,
-        _tee: Tee,
-        _tee_parameters: Option<Vec<u8>>,
+        tee: Tee,
+        tee_parameters: Option<Vec<u8>>,
     ) -> Result<String> {
-        Ok(String::new())
+        let req = tonic::Request::new(ChallengeRequest {
+            tee: to_grpc_tee(tee).into(),
+            tee_params: String::from_utf8(tee_parameters.unwrap()).unwrap(),
+        });
+
+        let mut client = { self.pool.lock().await.get().await? };
+
+        let challenge = client
+            .get_attestation_challenge(req)
+            .await?
+            .into_inner()
+            .attestation_challenge;
+
+        Ok(challenge)
     }
 }
 
