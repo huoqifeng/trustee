@@ -1,5 +1,5 @@
 use anyhow::anyhow;
-use log::{debug, warn};
+use log::{debug, error, info, warn};
 
 use crate::tdx::claims::generate_parsed_claim;
 
@@ -52,15 +52,17 @@ async fn verify_evidence(
     let quote_bin = base64::engine::general_purpose::STANDARD.decode(evidence.quote)?;
     ecdsa_quote_verification(quote_bin.as_slice()).await?;
 
+    info!("Quote DCAP check succeeded.");
+
     // Parse quote and Compare report data
     let quote = parse_tdx_quote(&quote_bin)?;
 
-    log::info!("{}\n", &quote);
+    debug!("{quote}");
 
     if let ReportData::Value(expected_report_data) = expected_report_data {
         debug!("Check the binding of REPORT_DATA.");
         let expected_report_data = regularize_data(expected_report_data, 64, "REPORT_DATA", "TDX");
-        if expected_report_data != quote.report_body.report_data {
+        if expected_report_data != quote.report_data() {
             bail!("REPORT_DATA is different from that in TDX Quote");
         }
     }
@@ -69,10 +71,13 @@ async fn verify_evidence(
         debug!("Check the binding of MRCONFIGID.");
         let expected_init_data_hash =
             regularize_data(expected_init_data_hash, 48, "MRCONFIGID", "TDX");
-        if expected_init_data_hash != quote.report_body.mr_config_id {
+        if expected_init_data_hash != quote.mr_config_id() {
+            error!("MRCONFIGID (Initdata) verification failed.");
             bail!("MRCONFIGID is different from that in TDX Quote");
         }
     }
+
+    info!("MRCONFIGID check succeeded.");
 
     // Verify Integrity of CC Eventlog
     let mut ccel_option = Option::default();
@@ -86,16 +91,17 @@ async fn verify_evidence(
             log::debug!("Get CC Eventlog. \n{}\n", &ccel.cc_events);
 
             let rtmr_from_quote = Rtmr {
-                rtmr0: quote.report_body.rtmr_0,
-                rtmr1: quote.report_body.rtmr_1,
-                rtmr2: quote.report_body.rtmr_2,
-                rtmr3: quote.report_body.rtmr_3,
+                rtmr0: quote.rtmr_0().try_into().expect("must be 48 bytes"),
+                rtmr1: quote.rtmr_1().try_into().expect("must be 48 bytes"),
+                rtmr2: quote.rtmr_2().try_into().expect("must be 48 bytes"),
+                rtmr3: quote.rtmr_3().try_into().expect("must be 48 bytes"),
             };
 
             ccel.integrity_check(rtmr_from_quote)?;
+            info!("CCEL integrity check succeeded.");
         }
         None => {
-            warn!("There is no CC EventLog in Evidence!!!");
+            warn!("No CC Eventlog included inside the TDX evidence.");
         }
     }
 
