@@ -259,13 +259,15 @@ impl AttestationService {
         self.rvps.verify_and_extract(message).await
     }
 
-    pub async fn generate_challenge(
+    pub async fn generate_supplemental_challenge(
         &self,
         tee: Tee,
         tee_parameters: Option<Vec<u8>>,
     ) -> Result<String> {
         let verifier = verifier::to_verifier(&tee)?;
-        verifier.generate_challenge(tee_parameters).await
+        verifier
+            .generate_supplemental_challenge(tee_parameters)
+            .await
     }
 }
 

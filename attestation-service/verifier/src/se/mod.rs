@@ -27,7 +27,7 @@ impl Verifier for SeVerifier {
         verify_evidence(evidence, expected_report_data, expected_init_data_hash).await
     }
 
-    async fn generate_challenge(
+    async fn generate_supplemental_challenge(
         &self,
         _tee_parameters: Option<Vec<u8>>,
     ) -> Result<String> {

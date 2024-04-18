@@ -167,7 +167,7 @@ pub trait Verifier {
         expected_init_data_hash: &InitDataHash,
     ) -> Result<TeeEvidenceParsedClaim>;
 
-    async fn generate_challenge(
+    async fn generate_supplemental_challenge(
         &self,
         _tee_parameters: Option<Vec<u8>>,
     ) -> Result<String> {

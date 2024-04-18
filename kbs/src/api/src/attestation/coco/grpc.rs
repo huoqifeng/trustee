@@ -127,7 +127,7 @@ impl Attest for GrpcClientPool {
         Ok(token)
     }
 
-    async fn generate_challenge(
+    async fn generate_supplemental_challenge(
         &self,
         tee: Tee,
         tee_parameters: Option<Vec<u8>>,

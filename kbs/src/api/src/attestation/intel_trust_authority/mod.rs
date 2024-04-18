@@ -123,7 +123,7 @@ impl Attest for IntelTrustAuthority {
         Ok(resp_data.token.clone())
     }
 
-    async fn generate_challenge(
+    async fn generate_supplemental_challenge(
         &self,
         _tee: Tee,
         _tee_parameters: Option<Vec<u8>>,

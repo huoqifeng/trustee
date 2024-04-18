@@ -34,8 +34,11 @@ pub trait Attest: Send + Sync {
     async fn verify(&self, tee: Tee, nonce: &str, attestation: &str) -> Result<String>;
 
     /// generate the challenge payload to pass to attester based on Tee and nonce
-    async fn generate_challenge(&self, tee: Tee, tee_parameters: Option<Vec<u8>>)
-        -> Result<String>;
+    async fn generate_supplemental_challenge(
+        &self,
+        tee: Tee,
+        tee_parameters: Option<Vec<u8>>,
+    ) -> Result<String>;
 }
 
 /// Attestation Service
@@ -94,7 +97,7 @@ impl AttestationService {
         }
     }
 
-    pub async fn generate_challenge(
+    pub async fn generate_supplemental_challenge(
         &self,
         tee: Tee,
         tee_parameters: Option<Vec<u8>>,
@@ -102,15 +105,21 @@ impl AttestationService {
         match self {
             #[cfg(feature = "coco-as-grpc")]
             AttestationService::CoCoASgRPC(inner) => {
-                inner.generate_challenge(tee, tee_parameters).await
+                inner
+                    .generate_supplemental_challenge(tee, tee_parameters)
+                    .await
             }
             #[cfg(any(feature = "coco-as-builtin", feature = "coco-as-builtin-no-verifier"))]
             AttestationService::CoCoASBuiltIn(inner) => {
-                inner.generate_challenge(tee, tee_parameters).await
+                inner
+                    .generate_supplemental_challenge(tee, tee_parameters)
+                    .await
             }
             #[cfg(feature = "intel-trust-authority-as")]
             AttestationService::IntelTA(inner) => {
-                inner.generate_challenge(tee, tee_parameters).await
+                inner
+                    .generate_supplemental_challenge(tee, tee_parameters)
+                    .await
             }
         }
     }

@@ -189,7 +189,7 @@ pub async fn get_challenge(
     let challenge = cocoas
         .read()
         .await
-        .generate_challenge(tee, Some(request.tee_params.clone().into_bytes()))
+        .generate_supplemental_challenge(tee, Some(request.tee_params.clone().into_bytes()))
         .await
         .context("generate challenge")?;
     Ok(HttpResponse::Ok().body(challenge))
