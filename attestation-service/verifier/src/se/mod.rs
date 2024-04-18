@@ -5,7 +5,6 @@
 
 use super::*;
 use async_trait::async_trait;
-use anyhow::anyhow;
 use base64::prelude::*;
 use serde_json::json;
 use crate::{InitDataHash, ReportData};
@@ -25,10 +24,7 @@ impl Verifier for SeVerifier {
         expected_report_data: &ReportData,
         expected_init_data_hash: &InitDataHash,
     ) -> Result<TeeEvidenceParsedClaim> {
-
-        verify_evidence(evidence, expected_report_data, expected_init_data_hash)
-        .await
-        .map_err(|e| anyhow!("Se Verifier: {:?}", e))
+        verify_evidence(evidence, expected_report_data, expected_init_data_hash).await
     }
 
     async fn generate_challenge(
@@ -39,6 +35,7 @@ impl Verifier for SeVerifier {
         // TODO replace FakeSeAttest with real crate
         let attester = FakeSeAttest::default();
 
+        // TODO replace the placeholder
         let hkds: Vec<String> = vec![String::new(); 2];
         let certk = "cert_file_path";
         let signk = "sign_file_path";
@@ -60,8 +57,10 @@ async fn verify_evidence(
     // TODO replace FakeSeAttest with real crate
     let attester = FakeSeAttest::default();
 
+    // TODO replace the placeholder
     let arpk = "arpk_file_path";
     let hdr = "hdr_file_path";
+
     let se = attester.verify(evidence, arpk, hdr)
                 .await
                 .context("Verify SE attestation evidence failed: {:?}")?;
