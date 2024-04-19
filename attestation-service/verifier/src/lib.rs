@@ -169,7 +169,7 @@ pub trait Verifier {
 
     async fn generate_supplemental_challenge(
         &self,
-        _tee_parameters: Option<Vec<u8>>,
+        _tee_parameters: Option<String>,
     ) -> Result<String> {
         Ok(String::new())
     }

@@ -29,7 +29,7 @@ impl Verifier for SeVerifier {
 
     async fn generate_supplemental_challenge(
         &self,
-        _tee_parameters: Option<Vec<u8>>,
+        _tee_parameters: Option<String>,
     ) -> Result<String> {
 
         // TODO replace FakeSeAttest with real IBM SE crate
@@ -41,11 +41,11 @@ impl Verifier for SeVerifier {
         let signk = "sign_file_path";
         let arpk = "arpk_file_path";
 
-        let extra_params = attester.create(hkds, certk, signk, arpk)
+        let challenge = attester.create(hkds, certk, signk, arpk)
                             .await
                             .context("Create SE attestation request failed: {:?}")?;
 
-        Ok(BASE64_STANDARD.encode(extra_params))
+        Ok(BASE64_STANDARD.encode(challenge))
     }
 }
 

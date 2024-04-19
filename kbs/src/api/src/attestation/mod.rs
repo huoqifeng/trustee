@@ -37,7 +37,7 @@ pub trait Attest: Send + Sync {
     async fn generate_supplemental_challenge(
         &self,
         tee: Tee,
-        tee_parameters: Option<Vec<u8>>,
+        tee_parameters: Option<String>,
     ) -> Result<String>;
 }
 
@@ -100,7 +100,7 @@ impl AttestationService {
     pub async fn generate_supplemental_challenge(
         &self,
         tee: Tee,
-        tee_parameters: Option<Vec<u8>>,
+        tee_parameters: Option<String>,
     ) -> Result<String> {
         match self {
             #[cfg(feature = "coco-as-grpc")]
