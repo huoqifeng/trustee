@@ -8,10 +8,10 @@ use async_trait::async_trait;
 use base64::prelude::*;
 use serde_json::json;
 use crate::{InitDataHash, ReportData};
-use crate::se::seattest::FakeSeAttest;
-use crate::se::seattest::SeFakeVerifier;
+use crate::se::ibmse::FakeSeAttest;
+use crate::se::ibmse::SeFakeVerifier;
 
-pub mod seattest;
+pub mod ibmse;
 
 #[derive(Debug, Default)]
 pub struct SeVerifier {}
@@ -32,7 +32,7 @@ impl Verifier for SeVerifier {
         _tee_parameters: Option<Vec<u8>>,
     ) -> Result<String> {
 
-        // TODO replace FakeSeAttest with real crate
+        // TODO replace FakeSeAttest with real IBM SE crate
         let attester = FakeSeAttest::default();
 
         // TODO replace the placeholder
@@ -54,7 +54,7 @@ async fn verify_evidence(
     _expected_report_data: &ReportData<'_>,
     _expected_init_data_hash: &InitDataHash<'_>,
 ) -> Result<TeeEvidenceParsedClaim> {
-    // TODO replace FakeSeAttest with real crate
+    // TODO replace FakeSeAttest with real IBM SE crate
     let attester = FakeSeAttest::default();
 
     // TODO replace the placeholder
