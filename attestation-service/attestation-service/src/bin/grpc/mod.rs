@@ -216,7 +216,7 @@ impl AttestationService for Arc<RwLock<AttestationServer>> {
             .read()
             .await
             .attestation_service
-            .generate_supplemental_challenge(tee, Some(request.tee_params.clone()))
+            .generate_supplemental_challenge(tee, request.tee_params.clone())
             .await
             .map_err(|e| Status::aborted(format!("Challenge: {e:?}")))?;
 

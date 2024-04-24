@@ -49,7 +49,7 @@ impl Attest for BuiltInCoCoAs {
     async fn generate_supplemental_challenge(
         &self,
         tee: Tee,
-        tee_parameters: Option<String>,
+        tee_parameters: String,
     ) -> Result<String> {
         self.inner
             .read()

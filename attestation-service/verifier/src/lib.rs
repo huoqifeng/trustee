@@ -167,9 +167,17 @@ pub trait Verifier {
         expected_init_data_hash: &InitDataHash,
     ) -> Result<TeeEvidenceParsedClaim>;
 
+    /// Generate the supplemental challenge
+    /// 
+    /// Some TEE like IBM SE need a `challenge` generated on verifier side
+    /// and pass it to attester side. This challenge is used by attester to
+    /// generate the evidence
+    ///
+    /// A optional `tee_parameters` comes from the attester side as the input.
+
     async fn generate_supplemental_challenge(
         &self,
-        _tee_parameters: Option<String>,
+        _tee_parameters: String,
     ) -> Result<String> {
         Ok(String::new())
     }

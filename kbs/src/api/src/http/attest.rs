@@ -24,7 +24,7 @@ pub(crate) async fn auth(
     debug!("Auth Request: {:?}", &request);
 
     let extra_params = attestation_service
-        .generate_supplemental_challenge(request.tee, Some(request.extra_params.clone()))
+        .generate_supplemental_challenge(request.tee, request.extra_params.clone())
         .await
         .unwrap();
 

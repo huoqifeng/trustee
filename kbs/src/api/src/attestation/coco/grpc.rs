@@ -130,11 +130,11 @@ impl Attest for GrpcClientPool {
     async fn generate_supplemental_challenge(
         &self,
         tee: Tee,
-        tee_parameters: Option<String>,
+        tee_parameters: String,
     ) -> Result<String> {
         let req = tonic::Request::new(ChallengeRequest {
             tee: to_grpc_tee(tee).into(),
-            tee_params: tee_parameters.unwrap(),
+            tee_params: tee_parameters,
         });
 
         let mut client = { self.pool.lock().await.get().await? };

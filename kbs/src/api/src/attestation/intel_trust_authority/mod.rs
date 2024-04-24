@@ -126,7 +126,7 @@ impl Attest for IntelTrustAuthority {
     async fn generate_supplemental_challenge(
         &self,
         _tee: Tee,
-        _tee_parameters: Option<String>,
+        _tee_parameters: String,
     ) -> Result<String> {
         Ok(String::new())
     }

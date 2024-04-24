@@ -29,7 +29,7 @@ impl Verifier for SeVerifier {
 
     async fn generate_supplemental_challenge(
         &self,
-        _tee_parameters: Option<String>,
+        _tee_parameters: String,
     ) -> Result<String> {
 
         // TODO replace FakeSeAttest with real IBM SE crate

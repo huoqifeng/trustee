@@ -278,7 +278,7 @@ impl AttestationService {
     pub async fn generate_supplemental_challenge(
         &self,
         tee: Tee,
-        tee_parameters: Option<String>,
+        tee_parameters: String,
     ) -> Result<String> {
         let verifier = verifier::to_verifier(&tee)?;
         verifier
