@@ -36,9 +36,12 @@ jsonwebtoken = { workspace = true, default-features = false, optional = true }
 kbs-types.workspace = true
 log.workspace = true
 openssl = { version = "0.10.55", optional = true }
+pv = { version = "0.10.0", package = "s390_pv" }
 scroll = { version = "0.11.0", default-features = false, features = ["derive"], optional = true }
 serde.workspace = true
 serde_json.workspace = true
+serde_with.workspace = true
+serde_yaml = "0.9.0"
 sev = { version = "1.2.0", features = ["openssl", "snp"], optional = true }
 sgx-dcap-quoteverify-rs = { git = "https://github.com/intel/SGXDataCenterAttestationPrimitives", tag = "DCAP_1.16", optional = true }
 strum.workspace = true
@@ -55,3 +58,4 @@ assert-json-diff.workspace = true
 rstest.workspace = true
 serial_test.workspace = true
 tokio.workspace = true
+
