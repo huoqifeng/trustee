@@ -7,9 +7,9 @@ use super::*;
 use async_trait::async_trait;
 use base64::prelude::*;
 use serde_json::json;
+use std::io::Cursor;
+use pv::misc::CertificateOptions;
 use crate::{InitDataHash, ReportData};
-use crate::se::ibmse::FakeSeAttest;
-use crate::se::ibmse::SeFakeVerifier;
 
 pub mod ibmse;
 
@@ -31,19 +31,13 @@ impl Verifier for SeVerifier {
         &self,
         _tee_parameters: String,
     ) -> Result<String> {
-
-        // TODO replace FakeSeAttest with real IBM SE crate
-        let attester = FakeSeAttest::default();
-
-        // TODO replace the placeholder
         let hkds: Vec<String> = vec![String::new(); 2];
-        let certk = "cert_file_path";
-        let signk = "sign_file_path";
-        let arpk = "arpk_file_path";
+        let certs: Vec<String> = vec![String::new(); 2];
+        let crls: Vec<String> = vec![];
+        let arpk = String::from("arpk_file_path");
+        let root_ca = Option::Some(String::from("root_ca"));
 
-        let challenge = attester.create(hkds, certk, signk, arpk)
-                            .await
-                            .context("Create SE attestation request failed: {:?}")?;
+        let challenge = ibmse::create(hkds, certs, crls, arpk, root_ca)?;
 
         Ok(BASE64_STANDARD.encode(challenge))
     }
@@ -54,21 +48,18 @@ async fn verify_evidence(
     _expected_report_data: &ReportData<'_>,
     _expected_init_data_hash: &InitDataHash<'_>,
 ) -> Result<TeeEvidenceParsedClaim> {
-    // TODO replace FakeSeAttest with real IBM SE crate
-    let attester = FakeSeAttest::default();
+    let arpk = String::from("arpk_file_path");
+    let hdr = String::from("hdr_file_path");
 
-    // TODO replace the placeholder
-    let arpk = "arpk_file_path";
-    let hdr = "hdr_file_path";
-
-    let se = attester.verify(evidence, arpk, hdr)
-                .await
-                .context("Verify SE attestation evidence failed: {:?}")?;
+    let mut cursor = Cursor::new(evidence);
+    let mut output: Vec<u8> = vec![];
+    let mut userdata: Vec<u8> = vec![];
+    let _res = ibmse::verify(&mut cursor, hdr, arpk, &mut output, &mut userdata);
 
     let claims_map = json!({
         "serial_number": format!("{}", "SE-ID"),
-        "measurement": format!("{}", BASE64_STANDARD.encode(se.clone())),
-        "report_data": format!("{}", BASE64_STANDARD.encode(se.clone())),
+        "measurement": format!("{}", BASE64_STANDARD.encode(output.clone())),
+        "report_data": format!("{}", BASE64_STANDARD.encode(userdata.clone())),
     });
 
     Ok(claims_map as TeeEvidenceParsedClaim)
