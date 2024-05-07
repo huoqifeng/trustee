@@ -4,14 +4,39 @@
 //
 
 use super::*;
-use async_trait::async_trait;
-use base64::prelude::*;
-use serde_json::json;
+use crate::se::ibmse::SeAttestationClaims;
 use crate::{InitDataHash, ReportData};
-use crate::se::ibmse::FakeSeAttest;
-use crate::se::ibmse::SeFakeVerifier;
+use async_trait::async_trait;
+use std::fs;
 
 pub mod ibmse;
+
+const SE_HOST_KEY_DOCUMENTS_ROOT: &str = "/run/confidential-containers/ibmse/hkds";
+const SE_CERTIFICATES_ROOT: &str = "/run/confidential-containers/ibmse/certs";
+const SE_CERTIFICATE_ROOT_CA: &str = "/run/confidential-containers/ibmse/certs/ca";
+const SE_CERTIFICATE_REVOCATION_LISTS_ROOT: &str = "/run/confidential-containers/ibmse/crls";
+const SE_IMAGE_HEADER_FILE: &str = "/run/confidential-containers/ibmse/hdr/hdr.bin";
+const SE_MEASUREMENT_ENCR_KEY_PRIVATE: &str =
+    "/run/confidential-containers/ibmse/rsa/encrypt_key.pem";
+const SE_MEASUREMENT_ENCR_KEY_PUBLIC: &str =
+    "/run/confidential-containers/ibmse/rsa/encrypt_key.pub";
+
+fn list_files_in_folder(dir: &str) -> Result<Vec<String>> {
+    let mut file_paths = Vec::new();
+
+    for entry in fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+
+        if path.is_file() {
+            if let Some(path_str) = path.to_str() {
+                file_paths.push(path_str.to_string());
+            }
+        }
+    }
+
+    Ok(file_paths)
+}
 
 #[derive(Debug, Default)]
 pub struct SeVerifier {}
@@ -31,21 +56,22 @@ impl Verifier for SeVerifier {
         &self,
         _tee_parameters: String,
     ) -> Result<String> {
+        let hkds = list_files_in_folder(SE_HOST_KEY_DOCUMENTS_ROOT)?;
+        let certs = list_files_in_folder(SE_CERTIFICATES_ROOT)?;
+        let crls = list_files_in_folder(SE_CERTIFICATE_REVOCATION_LISTS_ROOT)?;
+        let ca = String::from(SE_CERTIFICATE_ROOT_CA);
+        // challenge is Serialized SeAttestationRequest, attester uses it to do perform action
+        // attester then generates and return Serialized SeAttestationResponse
+        let challenge = ibmse::create(
+            &hkds,
+            &certs,
+            &crls,
+            ca,
+            SE_IMAGE_HEADER_FILE,
+            SE_MEASUREMENT_ENCR_KEY_PUBLIC,
+        );
 
-        // TODO replace FakeSeAttest with real IBM SE crate
-        let attester = FakeSeAttest::default();
-
-        // TODO replace the placeholder
-        let hkds: Vec<String> = vec![String::new(); 2];
-        let certk = "cert_file_path";
-        let signk = "sign_file_path";
-        let arpk = "arpk_file_path";
-
-        let challenge = attester.create(hkds, certk, signk, arpk)
-                            .await
-                            .context("Create SE attestation request failed: {:?}")?;
-
-        Ok(BASE64_STANDARD.encode(challenge))
+        challenge
     }
 }
 
@@ -54,22 +80,12 @@ async fn verify_evidence(
     _expected_report_data: &ReportData<'_>,
     _expected_init_data_hash: &InitDataHash<'_>,
 ) -> Result<TeeEvidenceParsedClaim> {
-    // TODO replace FakeSeAttest with real IBM SE crate
-    let attester = FakeSeAttest::default();
+    // evidence is serialized SeAttestationResponse String bytes
+    let mut se_claims = ibmse::verify(evidence, SE_MEASUREMENT_ENCR_KEY_PRIVATE)?;
+    se_generate_parsed_claim(&mut se_claims).map_err(|e| anyhow!("error from se Verifier: {:?}", e))
+}
 
-    // TODO replace the placeholder
-    let arpk = "arpk_file_path";
-    let hdr = "hdr_file_path";
-
-    let se = attester.verify(evidence, arpk, hdr)
-                .await
-                .context("Verify SE attestation evidence failed: {:?}")?;
-
-    let claims_map = json!({
-        "serial_number": format!("{}", "SE-ID"),
-        "measurement": format!("{}", BASE64_STANDARD.encode(se.clone())),
-        "report_data": format!("{}", BASE64_STANDARD.encode(se.clone())),
-    });
-
-    Ok(claims_map as TeeEvidenceParsedClaim)
+fn se_generate_parsed_claim(se_claims: &mut SeAttestationClaims) -> Result<TeeEvidenceParsedClaim> {
+    let v = serde_json::to_value(se_claims).context("build json value from the se claims")?;
+    Ok(v as TeeEvidenceParsedClaim)
 }
