@@ -17,56 +17,156 @@ use pv::{
 use serde::Serialize;
 use serde_yaml;
 use std::{fmt::Display, io::Read, process::ExitCode};
+use serde_with::base64::{Base64, Bcrypt, BinHex, Standard};
 
 const EXIT_CODE_ATTESTATION_FAIL: u8 = 2;
 
-#[derive(Serialize)]
-struct VerifyOutput<'a> {
-    cuid: HexSlice<'a>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    additional_data: Option<HexSlice<'a>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    additional_data_fields: Option<AdditionalData<HexSlice<'a>>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    user_data: Option<HexSlice<'a>>,
+//TODO implement getters or an into function to convert into pv::AttestationCmd(better approach)
+#[serde_as]
+#[derive(Debug, Serialize, Deserialize)]
+pub struct S390xAttestationRequest {
+    #[serde_as(as = "Base64")]
+    request_blob: Vec<u8>,
+    measurement_size: u32,
+    additional_size: u32,
+    //not the arpk but the real measuremtn key pv must provide a getter
+    #[serde_as(as = "Base64")]
+    encr_measurement_key: Vec<u8>,
+    //not the arpk but the request nonce pv must provide a getter
+    #[serde_as(as = "Base64")]
+    encr_request_nonce: Vec<u8>,
+    // IIRC the thing here should be stateless, therefore the request should contain the se header
+    // as well, right? To save bytes, only the really required bytes are included here.
+    //
+    // For this to work I need to add the AsRef<[u8]> impl for that type to pv crate, but that is
+    // very easy. as you see here:
+    //
+    // impl AsRef<[u8]> for BootHdrTags {
+    //    fn as_ref(&self) -> &[u8] {
+    //       self.as_bytes()
+    //       }
+    // }
+    #[serde_as(as = "Base64")]
+    image_hdr_tags: BootHdrTags,
 }
 
-impl<'a> VerifyOutput<'a> {
-    fn from_exchange(ctx: &'a ExchangeFormatCtx, flags: &AttestationFlags) -> Result<Self> {
-        let additional_data_fields = ctx
-            .additional()
-            .map(|a| AdditionalData::from_slice(a, flags))
-            .transpose()?;
-        let user_data = ctx.user().map(|u| u.into());
 
-        Ok(Self {
-            cuid: ctx.config_uid()?.into(),
-            additional_data: ctx.additional().map(|a| a.into()),
-            additional_data_fields,
-            user_data,
-        })
+impl S390xAttestationRequest {
+
+// the caller of this fun then only has to serielize the request in (using serde-json) e.g. json and send it via the
+    // network 
+
+
+pub fn create(hkds: Vec<String>, certs: Vec<String>, crls: Vec<String>, image_hdr_tags: BootHdrTags) -> Result<Self> {
+    let att_version = AttestationVersion::One;
+    let meas_alg = AttestationMeasAlg::HmacSha512;
+
+    let mut att_flags = AttestationFlags::default();
+    let mut arcb = AttestationRequest::new(att_version, meas_alg, att_flags)?;
+
+    let verifier = CertVerifier::new(certs.as_slice(), crls.as_slice(), None, false)?;
+        
+    let mut arcb = AttestationRequest::new(att_version, meas_alg, att_flags)?;
+        for hkd in hkds {
+            let hk = read_file(hkd, "host-key document")?;
+            let certs = read_certs(&hk).map_err(|source| Error::HkdNotPemOrDer {
+                hkd: hkd.to_string(),
+                source,
+            })?;
+            if certs.is_empty() {
+                todo!();
+            }
+            if certs.len() != 1 {
+                todo!();
+            }
+
+            // Panic: len is == 1 -> unwrap will succeed/not panic
+            let c = certs.first().unwrap();
+            verifier.verify(c)?;
+            arcb.add_hostkey(c.public_key()?);
+        }
+        let encr_ctx =
+        ReqEncrCtx::random(SymKeyType::Aes256)?;
+        let request_blob = arcb.encrypt(&encr_ctx)?;
+
+        let encr_measurement_key = /* TODO encrypt data I need to provide a getter for this in the pv crate*/;
+        let encr_request_nonce = /* TODO encrypt data I need to provide a getter for this in the pv crate*/;
+
+Self{
+request_blob,
+            measurement_size: meas_alg.expected_size(),
+additional_size: arcb.flags().expected_additional_size(),
+encr_measurement_key,
+encr_request_nonce,
+image_hdr_tags
+        }
+
     }
 }
+/// the caller of this fn has to deserialize the request first and serialize the result
 
-impl<'a> Display for VerifyOutput<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "Config UID:")?;
-        writeln!(f, "{:#}", self.cuid)?;
-        if let Some(data) = &self.additional_data {
-            writeln!(f, "Additional-data:")?;
-            writeln!(f, "{:#}", data)?;
-        }
-        if let Some(data) = &self.additional_data_fields {
-            writeln!(f, "Additional-data content:")?;
-            writeln!(f, "{:#}", data)?;
-        }
-        if let Some(data) = &self.user_data {
-            writeln!(f, "user-data:")?;
-            writeln!(f, "{:#}", data)?;
-        }
-        Ok(())
-    }
+
+//TODO insert user data
+fn poc_calc_measurement(req: &S390xAttestationRequest) -> Result<S390xAttestationResponse> {
+
+    let mut uvc: AttestationCmd = req.into(); //TODO impl Into<AttestatioCmd> in this crate
+    let uv = Uvdevice::open()?;
+    uv.send_cmd(&mut uvc)?;
+
+    let res = uvc.into(); //TODO impl Into<S390xAttestationResponse> in this crate
+Ok(res)
+
 }
+
+
+
+//TODO implement getters or an into function to convert from pv::AttestationCmd(better approach)
+//and into 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct S390xAttestationResponse {
+    #[serde_as(as = "Base64")]
+    measurement: Vec<u8>,
+    #[serde_as(as = "Base64")]
+    additional_data: Vec<u8>,
+    #[serde_as(as = "Base64")]
+    user_data: Vec<u8>,
+    #[serde_as(as = "Base64")]
+    cuid: ConfigUid,
+#[serde_as(as = "Base64")]
+    encr_measurement_key: Vec<u8>,
+    #[serde_as(as = "Base64")]
+    encr_request_nonce: Vec<u8>,
+
+    #[serde_as(as = "Base64")]
+    image_hdr_tags: BootHdrTags,
+}
+
+impl S390xAttestationResponse {
+fn verify(&self) -> Result<Todo> {
+    let meas_key = ...;
+        let nonce = ...;
+
+
+    let meas_key = PKey::hmac(conf.meas_key())?;
+let items = AttestationItems::new(self.image_hdr_tags, ....)?
+
+
+    let measurement =
+        AttestationMeasurement::calculate(items, AttestationMeasAlg::HmacSha512, &meas_key)?;
+
+//todo check measuremt
+        // do something with additonal data, user_data, ....
+
+    }
+
+    
+
+}
+
+
+
+
+
 
 pub fn verify(input: &mut dyn Read, hdr_file: String, arpk_file: String, output: &mut Vec<u8>, user_data: &mut Vec<u8>) -> Result<ExitCode> {
     let mut img = open_file(&hdr_file)?;
