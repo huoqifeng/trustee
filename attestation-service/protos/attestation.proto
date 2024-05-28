@@ -17,7 +17,7 @@ enum Tee {
 
 message AttestationRequest {
     // TEE enum. Specify the evidence type
-    Tee tee = 1;
+    string tee = 1;
 
     // Base64 encoded evidence. The alphabet is URL_SAFE_NO_PAD.
     // defined in https://datatracker.ietf.org/doc/html/rfc4648#section-5
@@ -85,7 +85,8 @@ message AttestationResponse {
 }
 
 message SetPolicyRequest {
-    string input = 1;
+    string policy_id = 1;
+    string policy = 2;
 }
 message SetPolicyResponse {}
 

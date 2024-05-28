@@ -2,7 +2,8 @@ use anyhow::{anyhow, bail, Result};
 use core::fmt;
 use log::{debug, warn};
 use qvl::{
-    sgx_ql_qv_result_t, sgx_ql_qv_supplemental_t, tee_get_supplemental_data_version_and_size,
+    quote3_error_t, sgx_ql_qv_result_t, sgx_ql_qv_supplemental_t, sgx_ql_request_policy_t,
+    sgx_qv_set_enclave_load_policy, tee_get_supplemental_data_version_and_size,
     tee_qv_get_collateral, tee_supp_data_descriptor_t, tee_verify_quote,
 };
 use scroll::Pread;
@@ -401,6 +402,23 @@ pub async fn ecdsa_quote_verification(quote: &[u8]) -> Result<()> {
         p_data: &mut supp_data as *mut sgx_ql_qv_supplemental_t as *mut u8,
     };
 
+    // Call DCAP quote verify library to set QvE loading policy to multi-thread
+    // We only need to set the policy once; otherwise, it will return the error code 0xe00c (SGX_QL_UNSUPPORTED_LOADING_POLICY)
+    static INIT: std::sync::Once = std::sync::Once::new();
+    INIT.call_once(|| {
+        match sgx_qv_set_enclave_load_policy(
+            sgx_ql_request_policy_t::SGX_QL_PERSISTENT_QVE_MULTI_THREAD,
+        ) {
+            quote3_error_t::SGX_QL_SUCCESS => {
+                debug!("Info: sgx_qv_set_enclave_load_policy successfully returned.")
+            }
+            err => warn!(
+                "Error: sgx_qv_set_enclave_load_policy failed: {:#04x}",
+                err as u32
+            ),
+        }
+    });
+
     match tee_get_supplemental_data_version_and_size(quote) {
         Ok((supp_ver, supp_size)) => {
             if supp_size == mem::size_of::<sgx_ql_qv_supplemental_t>() as u32 {
@@ -423,7 +441,7 @@ pub async fn ecdsa_quote_verification(quote: &[u8]) -> Result<()> {
     }
 
     // get collateral
-    let _collateral = match tee_qv_get_collateral(quote) {
+    let collateral = match tee_qv_get_collateral(quote) {
         Ok(c) => {
             debug!("tee_qv_get_collateral successfully returned.");
             Some(c)
@@ -433,8 +451,6 @@ pub async fn ecdsa_quote_verification(quote: &[u8]) -> Result<()> {
             None
         }
     };
-
-    let p_collateral: Option<&[u8]> = None;
 
     // set current time. This is only for sample purposes, in production mode a trusted time should be used.
     //
@@ -449,9 +465,14 @@ pub async fn ecdsa_quote_verification(quote: &[u8]) -> Result<()> {
     };
 
     // call DCAP quote verify library for quote verification
-    let (collateral_expiration_status, quote_verification_result) =
-        tee_verify_quote(quote, p_collateral, current_time, None, p_supplemental_data)
-            .map_err(|e| anyhow!("tee_verify_quote failed: {:#04x}", e as u32))?;
+    let (collateral_expiration_status, quote_verification_result) = tee_verify_quote(
+        quote,
+        collateral.as_deref(),
+        current_time,
+        None,
+        p_supplemental_data,
+    )
+    .map_err(|e| anyhow!("tee_verify_quote failed: {:#04x}", e as u32))?;
 
     debug!("tee_verify_quote successfully returned.");
 

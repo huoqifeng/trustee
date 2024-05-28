@@ -44,6 +44,19 @@ kustomize edit add resource ingress.yaml
 popd
 ```
 
+## Optional: Use non-release images
+
+Sometimes it may be desirable to deploy KBS with an image that is not what is set in the repo (typically
+the latest release image). To change the deployment to use a staging build, set the image using `kustomize`:
+
+```bash
+pushd base
+kustomize edit set image kbs-container-image=ghcr.io/confidential-containers/staged-images/kbs:65ee7e1acccd13dcb515058e71c5f8bfb4281e35
+popd
+```
+
+The available image tags can be found in the [CoCo packages listing](https://github.com/orgs/confidential-containers/packages?repo_name=trustee).
+
 ## Optional: Expose KBS using Nodeport
 
 If you would like to expose KBS service using Nodeport then export the following environment variable:
@@ -57,6 +70,16 @@ Once you deploy the KBS, you can use the services' nodeport and the Kubernetes n
 ```bash
 echo $(kubectl get nodes -o jsonpath='{.items[0].status.addresses[0].address}'):$(kubectl get svc kbs -n coco-tenant -o jsonpath='{.spec.ports[0].nodePort}')
 ```
+
+## Optional: Use custom Intel DCAP configuration
+
+If you would like to override the default `sgx_default_qcnl.conf` in the KBS/AS images, copy/configure one into `custom_pccs/` directory and deploy using:
+
+```bash
+export DEPLOYMENT_DIR=custom_pccs
+```
+
+NB: this currently builds on `nodeport` kustomization.
 
 ## Deploy KBS
 

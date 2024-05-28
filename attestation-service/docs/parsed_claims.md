@@ -96,7 +96,30 @@ Note: The TD Report and TD Quote are fetched during early boot in this TEE. Kern
 ## IBM Secure Execution (SE)
 - `se.version`: The version this quote structure.
 - `se.cuid`: The config uid.
-- `se.hdr.seht`: SE Header Tag (seht)
+- `se.hdr.tag`: SE Header Tag (seht)
 - `se.image.phkh`: SE image Public host key hash
 - `se.attestation.phkh`: SE attestation Public host key hash
 - `se.user_data`: Custom attestation key owner data.
+## AMD SEV-SNP
+
+- `snp.measurement` Launch Digest covering initial guest memory
+- `snp.platform_smt_enabled`:  Whether Simultaneous Multithreading is enabled on the system
+- `snp.platform_tsme_enabled`: Whether Transparent SME is enabled on the system
+- `snp.policy_abi_major`: Minimum ABI major version allowed for guest
+- `snp.policy_abi_minor`: Minimum ABI minor version allowed for guest
+- `snp.policy_debug_allowed`: Whether SNP debug features are allowed for guest
+- `snp.policy_migrate_ma`: Whether migration agent can be connected to guest
+- `snp.policy_single_socket`: Whether guest can be activated only on one socket
+- `snp.policy_smt_allowed`: Whether guest can run on a system with SMT enabled
+- `snp.reported_tcb_bootloader`: Reported SVN of ASP bootloader
+- `snp.reported_tcb_microcode`: Reported microcode version
+- `snp.reported_tcb_snp`: Reported SVN of SNP Firmware
+- `snp.reported_tcb_tee`: Reported SVN of ASP OS
+
+The claims map only includes the reported TCB version.
+An SEV-SNP Attestation Report contains four sets of TCB version information.
+Often all four values are the same, but sometimes the reported TCB might lag
+behind the true firmware version. This is done to minimize churn of policies
+and certificates while the provider updates to provisional firmware.
+The actual firmware must always be newer than or equal to the reported TCB.
+Generally, policies should be evaluated against the reported TCB.

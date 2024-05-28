@@ -1,6 +1,6 @@
 use anyhow::anyhow;
 use base64::Engine;
-use log::debug;
+use log::{debug, warn};
 extern crate serde;
 use self::serde::{Deserialize, Serialize};
 use super::*;
@@ -9,6 +9,7 @@ use async_trait::async_trait;
 use openssl::{
     ec::EcKey,
     ecdsa,
+    nid::Nid,
     pkey::{PKey, Public},
     sha::sha384,
     x509::{self, X509},
@@ -22,7 +23,7 @@ use x509_parser::prelude::*;
 #[derive(Serialize, Deserialize)]
 pub struct SnpEvidence {
     attestation_report: AttestationReport,
-    cert_chain: Vec<CertTableEntry>,
+    cert_chain: Option<Vec<CertTableEntry>>,
 }
 
 const HW_ID_OID: Oid<'static> = oid!(1.3.6 .1 .4 .1 .3704 .1 .4);
@@ -39,15 +40,15 @@ pub struct Snp {
 pub(crate) fn load_milan_cert_chain() -> &'static Result<VendorCertificates> {
     static MILAN_CERT_CHAIN: OnceLock<Result<VendorCertificates>> = OnceLock::new();
     MILAN_CERT_CHAIN.get_or_init(|| {
-        let certs = X509::stack_from_pem(include_bytes!("milan_ask_ark.pem"))?;
-        if certs.len() != 2 {
-            bail!("Malformed Milan ASK/ARK");
+        let certs = X509::stack_from_pem(include_bytes!("milan_ask_ark_asvk.pem"))?;
+        if certs.len() != 3 {
+            bail!("Malformed Milan ASK/ARK/ASVK");
         }
 
-        // ask, ark
         let vendor_certs = VendorCertificates {
             ask: certs[0].clone(),
             ark: certs[1].clone(),
+            asvk: certs[2].clone(),
         };
         Ok(vendor_certs)
     })
@@ -67,6 +68,7 @@ impl Snp {
 pub(crate) struct VendorCertificates {
     ask: X509,
     ark: X509,
+    asvk: X509,
 }
 
 #[async_trait]
@@ -82,6 +84,10 @@ impl Verifier for Snp {
             cert_chain,
         } = serde_json::from_slice(evidence).context("Deserialize Quote failed.")?;
 
+        let Some(cert_chain) = cert_chain else {
+            bail!("Cert chain is unset");
+        };
+
         verify_report_signature(&report, &cert_chain, &self.vendor_certs)?;
 
         if report.version != 2 {
@@ -92,16 +98,20 @@ impl Verifier for Snp {
             return Err(anyhow!("VMPL Check Failed"));
         }
 
-        let ReportData::Value(expected_report_data) = expected_report_data else {
-            bail!("Report Data unset");
+        if let ReportData::Value(expected_report_data) = expected_report_data {
+            debug!("Check the binding of REPORT_DATA.");
+            let expected_report_data =
+                regularize_data(expected_report_data, 64, "REPORT_DATA", "SNP");
+
+            if expected_report_data != report.report_data {
+                warn!(
+                    "Report data mismatch. Given: {}, Expected: {}",
+                    hex::encode(report.report_data),
+                    hex::encode(expected_report_data)
+                );
+                bail!("Report Data Mismatch");
+            }
         };
-
-        debug!("Check the binding of REPORT_DATA.");
-        let expected_report_data = regularize_data(expected_report_data, 64, "REPORT_DATA", "SNP");
-
-        if expected_report_data != report.report_data {
-            bail!("Report Data Mismatch");
-        }
 
         if let InitDataHash::Value(expected_init_data_hash) = expected_init_data_hash {
             debug!("Check the binding of HOST_DATA.");
@@ -142,8 +152,8 @@ fn get_oid_octets<const N: usize>(
         .context("Unexpected data size")
 }
 
-fn get_oid_int(vcek: &x509_parser::certificate::TbsCertificate, oid: Oid) -> Result<u8> {
-    let val = vcek
+fn get_oid_int(cert: &x509_parser::certificate::TbsCertificate, oid: Oid) -> Result<u8> {
+    let val = cert
         .get_extension_unique(&oid)?
         .ok_or_else(|| anyhow!("Oid not found"))?
         .value;
@@ -158,35 +168,45 @@ pub(crate) fn verify_report_signature(
     vendor_certs: &VendorCertificates,
 ) -> Result<()> {
     // check cert chain
-    let VendorCertificates { ask, ark } = vendor_certs;
-    let vcek = verify_cert_chain(cert_chain, ask, ark)?;
+    let VendorCertificates { ask, ark, asvk } = vendor_certs;
+
+    // verify VCEK or VLEK cert chain
+    // the key can be either VCEK or VLEK
+    let endorsement_key = verify_cert_chain(cert_chain, ask, ark, asvk)?;
 
     // OpenSSL bindings do not expose custom extensions
-    // Parse the vcek using x509_parser
-    let vcek_der = &vcek.to_der()?;
-    let parsed_vcek = X509Certificate::from_der(vcek_der)?.1.tbs_certificate;
+    // Parse the key using x509_parser
+    let endorsement_key_der = &endorsement_key.to_der()?;
+    let parsed_endorsement_key = X509Certificate::from_der(endorsement_key_der)?
+        .1
+        .tbs_certificate;
 
-    // verify vcek fields
-    // chip id
-    if get_oid_octets::<64>(&parsed_vcek, HW_ID_OID)? != report.chip_id {
-        return Err(anyhow!("Chip ID mismatch"));
+    let common_name =
+        get_common_name(&endorsement_key).context("No common name found in certificate")?;
+
+    // if the common name is "VCEK", then the key is a VCEK
+    // so lets check the chip id
+    if common_name == "VCEK"
+        && get_oid_octets::<64>(&parsed_endorsement_key, HW_ID_OID)? != report.chip_id
+    {
+        bail!("Chip ID mismatch");
     }
 
     // tcb version
     // these integer extensions are 3 bytes with the last byte as the data
-    if get_oid_int(&parsed_vcek, UCODE_SPL_OID)? != report.reported_tcb.microcode {
+    if get_oid_int(&parsed_endorsement_key, UCODE_SPL_OID)? != report.reported_tcb.microcode {
         return Err(anyhow!("Microcode version mismatch"));
     }
 
-    if get_oid_int(&parsed_vcek, SNP_SPL_OID)? != report.reported_tcb.snp {
+    if get_oid_int(&parsed_endorsement_key, SNP_SPL_OID)? != report.reported_tcb.snp {
         return Err(anyhow!("SNP version mismatch"));
     }
 
-    if get_oid_int(&parsed_vcek, TEE_SPL_OID)? != report.reported_tcb.tee {
+    if get_oid_int(&parsed_endorsement_key, TEE_SPL_OID)? != report.reported_tcb.tee {
         return Err(anyhow!("TEE version mismatch"));
     }
 
-    if get_oid_int(&parsed_vcek, LOADER_SPL_OID)? != report.reported_tcb.bootloader {
+    if get_oid_int(&parsed_endorsement_key, LOADER_SPL_OID)? != report.reported_tcb.bootloader {
         return Err(anyhow!("Boot loader version mismatch"));
     }
 
@@ -194,7 +214,7 @@ pub(crate) fn verify_report_signature(
     let sig = ecdsa::EcdsaSig::try_from(&report.signature)?;
     let data = &bincode::serialize(&report)?[..=0x29f];
 
-    let pub_key = EcKey::try_from(vcek.public_key()?)?;
+    let pub_key = EcKey::try_from(endorsement_key.public_key()?)?;
     let signed = sig.verify(&sha384(data), &pub_key)?;
     if !signed {
         return Err(anyhow!("Signature validation failed."));
@@ -209,21 +229,42 @@ fn verify_signature(cert: &X509, issuer: &X509, name: &str) -> Result<()> {
         .ok_or_else(|| anyhow!("Invalid {name} signature"))
 }
 
-fn verify_cert_chain(cert_chain: &[CertTableEntry], ask: &X509, ark: &X509) -> Result<X509> {
-    let raw_vcek = cert_chain
+fn verify_cert_chain(
+    cert_chain: &[CertTableEntry],
+    ask: &X509,
+    ark: &X509,
+    asvk: &X509,
+) -> Result<X509> {
+    // get endorsement keys (VLEK or VCEK)
+    let endorsement_keys: Vec<&CertTableEntry> = cert_chain
         .iter()
-        .find(|c| c.cert_type == CertType::VCEK)
-        .ok_or_else(|| anyhow!("VCEK not found."))?;
-    let vcek = x509::X509::from_der(raw_vcek.data()).context("Failed to load VCEK")?;
+        .filter(|e| e.cert_type == CertType::VCEK || e.cert_type == CertType::VLEK)
+        .collect();
 
-    // ARK -> ARK
-    verify_signature(ark, ark, "ARK")?;
-    // ARK -> ASK
-    verify_signature(ask, ark, "ASK")?;
-    // ASK -> VCEK
-    verify_signature(&vcek, ask, "VCEK")?;
+    let &[key] = endorsement_keys.as_slice() else {
+        bail!("Could not find either VCEK or VLEK in cert chain")
+    };
 
-    Ok(vcek)
+    let decoded_key =
+        x509::X509::from_der(key.data()).context("Failed to decode endorsement key")?;
+
+    match key.cert_type {
+        CertType::VCEK => {
+            // Chain: ARK -> ARK -> ASK -> VCEK
+            verify_signature(ark, ark, "ARK")?;
+            verify_signature(ask, ark, "ASK")?;
+            verify_signature(&decoded_key, ask, "VCEK")?;
+        }
+        CertType::VLEK => {
+            // Chain: ARK -> ARK -> ASVK -> VLEK
+            verify_signature(ark, ark, "ARK")?;
+            verify_signature(asvk, ark, "ASVK")?;
+            verify_signature(&decoded_key, asvk, "VLEK")?;
+        }
+        _ => bail!("Certificate not of type versioned endorsement key (VLEK or VCEK)"),
+    }
+
+    Ok(decoded_key)
 }
 
 pub(crate) fn parse_tee_evidence(report: &AttestationReport) -> TeeEvidenceParsedClaim {
@@ -253,16 +294,37 @@ pub(crate) fn parse_tee_evidence(report: &AttestationReport) -> TeeEvidenceParse
     claims_map as TeeEvidenceParsedClaim
 }
 
+fn get_common_name(cert: &x509::X509) -> Result<String> {
+    let mut entries = cert.subject_name().entries_by_nid(Nid::COMMONNAME);
+    let Some(e) = entries.next() else {
+        bail!("No CN found");
+    };
+
+    if entries.count() != 0 {
+        bail!("No CN found");
+    }
+
+    Ok(e.data().as_utf8()?.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use openssl::nid::Nid;
+
+    const VCEK: &[u8; 1360] = include_bytes!("../../test_data/snp/test-vcek.der");
+    const VCEK_LEGACY: &[u8; 1361] = include_bytes!("../../test_data/snp/test-vcek-invalid-legacy.der");
+    const VCEK_NEW: &[u8; 1362] = include_bytes!("../../test_data/snp/test-vcek-invalid-new.der");
+    const VCEK_REPORT: &[u8; 1184] = include_bytes!("../../test_data/snp/test-report.bin");
+
+    const VLEK: &[u8; 1329] = include_bytes!("../../test_data/snp/test-vlek.der");
+    const VLEK_REPORT: &[u8; 1184] = include_bytes!("../../test_data/snp/test-vlek-report.bin");
 
     #[test]
     fn check_milan_certificates() {
-        let VendorCertificates { ask, ark } = load_milan_cert_chain().as_ref().unwrap();
+        let VendorCertificates { ask, ark, asvk } = load_milan_cert_chain().as_ref().unwrap();
         assert_eq!(get_common_name(ark).unwrap(), "ARK-Milan");
         assert_eq!(get_common_name(ask).unwrap(), "SEV-Milan");
+        assert_eq!(get_common_name(asvk).unwrap(), "SEV-VLEK-Milan");
 
         assert!(ark
             .verify(&(ark.public_key().unwrap() as PKey<Public>))
@@ -273,113 +335,153 @@ mod tests {
             .verify(&(ark.public_key().unwrap() as PKey<Public>))
             .context("Invalid ASK Signature")
             .unwrap());
+
+        assert!(asvk
+            .verify(&(ark.public_key().unwrap() as PKey<Public>))
+            .context("Invalid ASVK Signature")
+            .unwrap());
     }
 
-    fn get_common_name(cert: &x509::X509) -> Result<String> {
-        let mut entries = cert.subject_name().entries_by_nid(Nid::COMMONNAME);
-
-        if let Some(e) = entries.next() {
-            assert_eq!(entries.count(), 0);
-            return Ok(e.data().as_utf8()?.to_string());
+    fn check_oid_ints(cert: &TbsCertificate) {
+        let oids = vec![UCODE_SPL_OID, SNP_SPL_OID, TEE_SPL_OID, LOADER_SPL_OID];
+        for oid in oids {
+            get_oid_int(&cert, oid).unwrap();
         }
-        Err(anyhow!("No CN found"))
+    }
+
+    #[test]
+    fn check_vlek_parsing() {
+        let parsed_vlek = X509Certificate::from_der(VLEK)
+            .unwrap()
+            .1
+            .tbs_certificate;
+
+        check_oid_ints(&parsed_vlek);
     }
 
     #[test]
     fn check_vcek_parsing() {
-        let vcek_der = include_bytes!("test-vcek.der");
-        let parsed_vcek = X509Certificate::from_der(vcek_der)
+        let parsed_vcek = X509Certificate::from_der(VCEK)
             .unwrap()
             .1
             .tbs_certificate;
 
         get_oid_octets::<64>(&parsed_vcek, HW_ID_OID).unwrap();
-        let oids = vec![UCODE_SPL_OID, SNP_SPL_OID, TEE_SPL_OID, LOADER_SPL_OID];
-        for oid in oids {
-            get_oid_int(&parsed_vcek, oid).unwrap();
-        }
+
+        check_oid_ints(&parsed_vcek);
     }
 
     #[test]
     fn check_vcek_parsing_legacy() {
-        let vcek_der = include_bytes!("test-vcek-invalid-legacy.der");
-        let parsed_vcek = X509Certificate::from_der(vcek_der)
+        let parsed_vcek = X509Certificate::from_der(VCEK_LEGACY)
             .unwrap()
             .1
             .tbs_certificate;
 
         get_oid_octets::<64>(&parsed_vcek, HW_ID_OID).unwrap();
-        let oids = vec![UCODE_SPL_OID, SNP_SPL_OID, TEE_SPL_OID, LOADER_SPL_OID];
-        for oid in oids {
-            get_oid_int(&parsed_vcek, oid).unwrap();
-        }
+
+        check_oid_ints(&parsed_vcek);
     }
 
     #[test]
     fn check_vcek_parsing_new() {
-        let vcek_der = include_bytes!("test-vcek-invalid-new.der");
-        let parsed_vcek = X509Certificate::from_der(vcek_der)
+        let parsed_vcek = X509Certificate::from_der(VCEK_NEW)
             .unwrap()
             .1
             .tbs_certificate;
 
         get_oid_octets::<64>(&parsed_vcek, HW_ID_OID).unwrap();
-        let oids = vec![UCODE_SPL_OID, SNP_SPL_OID, TEE_SPL_OID, LOADER_SPL_OID];
-        for oid in oids {
-            get_oid_int(&parsed_vcek, oid).unwrap();
-        }
+
+        check_oid_ints(&parsed_vcek);
     }
 
     #[test]
     fn check_vcek_signature_verification() {
-        let vcek = include_bytes!("test-vcek.der").to_vec();
-        let cert_table = vec![CertTableEntry::new(CertType::VCEK, vcek)];
-        let VendorCertificates { ask, ark } = load_milan_cert_chain().as_ref().unwrap();
-        verify_cert_chain(&cert_table, ask, ark).unwrap();
+        let cert_table = vec![CertTableEntry::new(CertType::VCEK, VCEK.to_vec())];
+        let VendorCertificates { ask, ark, asvk } = load_milan_cert_chain().as_ref().unwrap();
+        verify_cert_chain(&cert_table, ask, ark, asvk).unwrap();
     }
 
     #[test]
     fn check_vcek_signature_failure() {
-        let mut vcek = include_bytes!("test-vcek.der").to_vec();
+        let mut vcek = VCEK.clone();
 
         // corrupt some byte, while it should remain a valid cert
         vcek[42] += 1;
         X509::from_der(&vcek).expect("failed to parse der");
 
-        let cert_table = vec![CertTableEntry::new(CertType::VCEK, vcek)];
-        let VendorCertificates { ask, ark } = load_milan_cert_chain().as_ref().unwrap();
-        verify_cert_chain(&cert_table, ask, ark).unwrap_err();
+        let cert_table = vec![CertTableEntry::new(CertType::VCEK, vcek.to_vec())];
+        let VendorCertificates { ask, ark, asvk } = load_milan_cert_chain().as_ref().unwrap();
+        verify_cert_chain(&cert_table, ask, ark, asvk).unwrap_err();
+    }
+
+    #[test]
+    fn check_vlek_signature_verification() {
+        let cert_table = vec![CertTableEntry::new(CertType::VLEK, VLEK.to_vec())];
+        let VendorCertificates { ask, ark, asvk } = load_milan_cert_chain().as_ref().unwrap();
+        verify_cert_chain(&cert_table, ask, ark, asvk).unwrap();
+    }
+
+    #[test]
+    fn check_vlek_signature_failure() {
+        let mut vlek = VLEK.clone();
+
+        // corrupt some byte, while it should remain a valid cert
+        vlek[42] += 1;
+        X509::from_der(&vlek).expect("failed to parse der");
+
+        let cert_table = vec![CertTableEntry::new(CertType::VLEK, vlek.to_vec())];
+        let VendorCertificates { ask, ark, asvk } = load_milan_cert_chain().as_ref().unwrap();
+        verify_cert_chain(&cert_table, ask, ark, asvk).unwrap_err();
     }
 
     #[test]
     fn check_milan_chain_signature_failure() {
-        let vcek = include_bytes!("test-vcek.der").to_vec();
-        let cert_table = vec![CertTableEntry::new(CertType::VCEK, vcek)];
-        let VendorCertificates { ask, ark } = load_milan_cert_chain().as_ref().unwrap();
+        let cert_table = vec![CertTableEntry::new(CertType::VCEK, VCEK.to_vec())];
+        let VendorCertificates { ask, ark, asvk } = load_milan_cert_chain().as_ref().unwrap();
+
         // toggle ark <=> ask
-        verify_cert_chain(&cert_table, ark, ask).unwrap_err();
+        verify_cert_chain(&cert_table, ark, ask, asvk).unwrap_err();
     }
 
     #[test]
     fn check_report_signature() {
-        let vcek = include_bytes!("test-vcek.der").to_vec();
-        let bytes = include_bytes!("test-report.bin");
-        let attestation_report = bincode::deserialize::<AttestationReport>(bytes).unwrap();
-        let cert_chain = vec![CertTableEntry::new(CertType::VCEK, vcek)];
+        let attestation_report = bincode::deserialize::<AttestationReport>(VCEK_REPORT.as_slice()).unwrap();
+        let cert_chain = vec![CertTableEntry::new(CertType::VCEK, VCEK.to_vec())];
+        let vendor_certs = load_milan_cert_chain().as_ref().unwrap();
+        verify_report_signature(&attestation_report, &cert_chain, vendor_certs).unwrap();
+    }
+
+    #[test]
+    fn check_vlek_report_signature() {
+        let attestation_report = bincode::deserialize::<AttestationReport>(VLEK_REPORT.as_slice()).unwrap();
+        let cert_chain = vec![CertTableEntry::new(CertType::VLEK, VLEK.to_vec())];
         let vendor_certs = load_milan_cert_chain().as_ref().unwrap();
         verify_report_signature(&attestation_report, &cert_chain, vendor_certs).unwrap();
     }
 
     #[test]
     fn check_report_signature_failure() {
-        let vcek = include_bytes!("test-vcek.der").to_vec();
-        let mut bytes = include_bytes!("test-report.bin").to_vec();
+        let mut bytes = VCEK_REPORT.clone();
 
         // corrupt some byte
         bytes[42] += 1;
 
         let attestation_report = bincode::deserialize::<AttestationReport>(&bytes).unwrap();
-        let cert_chain = vec![CertTableEntry::new(CertType::VCEK, vcek)];
+        let cert_chain = vec![CertTableEntry::new(CertType::VCEK, VCEK.to_vec())];
+        let vendor_certs = load_milan_cert_chain().as_ref().unwrap();
+        verify_report_signature(&attestation_report, &cert_chain, vendor_certs).unwrap_err();
+    }
+
+    #[test]
+    fn check_vlek_report_signature_failure() {
+        let mut bytes = VLEK_REPORT.clone(); 
+
+        // corrupt some byte
+        bytes[42] += 1;
+
+        let attestation_report = bincode::deserialize::<AttestationReport>(&bytes).unwrap();
+        let cert_chain = vec![CertTableEntry::new(CertType::VLEK, VLEK.to_vec())];
         let vendor_certs = load_milan_cert_chain().as_ref().unwrap();
         verify_report_signature(&attestation_report, &cert_chain, vendor_certs).unwrap_err();
     }

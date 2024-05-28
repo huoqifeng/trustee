@@ -84,9 +84,11 @@ impl GrpcClientPool {
 
 #[async_trait]
 impl Attest for GrpcClientPool {
-    async fn set_policy(&self, input: &[u8]) -> Result<()> {
-        let input = String::from_utf8(input.to_vec()).context("parse SetPolicyInput")?;
-        let req = tonic::Request::new(SetPolicyRequest { input });
+    async fn set_policy(&self, policy_id: &str, policy: &str) -> Result<()> {
+        let req = tonic::Request::new(SetPolicyRequest {
+            policy_id: policy_id.to_string(),
+            policy: policy.to_string(),
+        });
 
         let mut client = { self.pool.lock().await.get().await? };
 
@@ -106,8 +108,13 @@ impl Attest for GrpcClientPool {
         let runtime_data_plaintext = serde_json::to_string(&runtime_data_plaintext)
             .context("CoCo AS client: serialize runtime data failed")?;
 
+        let tee = serde_json::to_string(&tee)
+            .context("CoCo AS client: serialize tee type failed.")?
+            .trim_end_matches('"')
+            .trim_start_matches('"')
+            .to_string();
         let req = tonic::Request::new(AttestationRequest {
-            tee: to_grpc_tee(tee).into(),
+            tee,
             evidence: URL_SAFE_NO_PAD.encode(attestation.tee_evidence),
             runtime_data_hash_algorithm: COCO_AS_HASH_ALGORITHM.into(),
             init_data_hash_algorithm: COCO_AS_HASH_ALGORITHM.into(),
