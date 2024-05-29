@@ -91,7 +91,7 @@ impl SeAttestationRequest {
         Ok(serde_json::from_slice(request).unwrap())
     }
 
-    pub fn from_str(request: &str) -> Result<Self> {
+    pub fn from_string(request: &str) -> Result<Self> {
         Ok(serde_json::from_str(request).unwrap())
     }
 
@@ -176,7 +176,7 @@ impl SeAttestationResponse {
         Ok(serde_json::from_slice(response).unwrap())
     }
 
-    pub fn from_str(request: &str) -> Result<Self> {
+    pub fn from_string(request: &str) -> Result<Self> {
         Ok(serde_json::from_str(request).unwrap())
     }
 
@@ -241,8 +241,8 @@ impl SeAttestationResponse {
             return Err(anyhow!("Failed to verify the measurement!"));
         }
         
-        let userdata = serde_json::from_slice(&self.user_data)?;
-        debug!("user_data: {:?}", userdata);
+        // let userdata = serde_json::from_slice(&self.user_data)?;
+        // debug!("user_data: {:?}", userdata);
         // TODO check UserData.image_btph with previous saved value
 
         let mut att_flags = AttestationFlags::default();
@@ -309,7 +309,7 @@ pub fn verify(response: &[u8], priv_key_file: &str) -> Result<SeAttestationClaim
     // response is serialized SeAttestationResponse String bytes
     let response_str = std::str::from_utf8(response)?;
     debug!("SeAttestationResponse json: {:#?}", response_str);
-    let se_response = SeAttestationResponse::from_str(&response_str)?;
+    let se_response = SeAttestationResponse::from_string(response_str)?;
 
     let claims = se_response.verify(priv_key_file)?;
     debug!("claims json: {:#?}", claims);

@@ -62,16 +62,14 @@ impl Verifier for SeVerifier {
         let ca = String::from(SE_CERTIFICATE_ROOT_CA);
         // challenge is Serialized SeAttestationRequest, attester uses it to do perform action
         // attester then generates and return Serialized SeAttestationResponse
-        let challenge = ibmse::create(
+        ibmse::create(
             &hkds,
             &certs,
             &crls,
             ca,
             SE_IMAGE_HEADER_FILE,
             SE_MEASUREMENT_ENCR_KEY_PUBLIC,
-        );
-
-        challenge
+        )
     }
 }
 

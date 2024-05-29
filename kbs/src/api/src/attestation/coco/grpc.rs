@@ -16,7 +16,7 @@ use tonic::transport::Channel;
 
 use self::attestation::{
     attestation_request::RuntimeData, attestation_service_client::AttestationServiceClient,
-    AttestationRequest, ChallengeRequest, SetPolicyRequest, Tee as GrpcTee,
+    AttestationRequest, ChallengeRequest, SetPolicyRequest,
 };
 
 mod attestation {
@@ -28,18 +28,19 @@ pub const DEFAULT_POOL_SIZE: u64 = 100;
 
 pub const COCO_AS_HASH_ALGORITHM: &str = "sha384";
 
-fn to_grpc_tee(tee: Tee) -> GrpcTee {
+fn to_grpc_tee(tee: Tee) -> Option<String> {
     match tee {
-        Tee::AzSnpVtpm => GrpcTee::AzSnpVtpm,
-        Tee::AzTdxVtpm => GrpcTee::AzTdxVtpm,
-        Tee::Cca => GrpcTee::Cca,
-        Tee::Csv => GrpcTee::Csv,
-        Tee::Sample => GrpcTee::Sample,
-        Tee::Sev => GrpcTee::Sev,
-        Tee::Sgx => GrpcTee::Sgx,
-        Tee::Snp => GrpcTee::Snp,
-        Tee::Tdx => GrpcTee::Tdx,
-        Tee::Se => GrpcTee::Se,
+        Tee::AzSnpVtpm => Some(String::from("azsnpvtpm")),
+        Tee::AzTdxVtpm => Some(String::from("aztdxvtpm")),
+        Tee::Cca => Some(String::from("cca")),
+        Tee::Csv => Some(String::from("csv")),
+        Tee::Sample => Some(String::from("sample")),
+        Tee::Sev => Some(String::from("sev")),
+        Tee::Sgx => Some(String::from("sgx")),
+        Tee::Snp => Some(String::from("snp")),
+        Tee::Tdx => Some(String::from("tdx")),
+        Tee::Se => Some(String::from("se")),
+        _ => None,
     }
 }
 
@@ -139,8 +140,9 @@ impl Attest for GrpcClientPool {
         tee: Tee,
         tee_parameters: String,
     ) -> Result<String> {
+        let grpc_tee = to_grpc_tee(tee).unwrap();
         let req = tonic::Request::new(ChallengeRequest {
-            tee: to_grpc_tee(tee).into(),
+            tee: grpc_tee,
             tee_params: tee_parameters,
         });
 
