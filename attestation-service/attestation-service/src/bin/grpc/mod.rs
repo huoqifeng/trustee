@@ -203,10 +203,8 @@ impl AttestationService for Arc<RwLock<AttestationServer>> {
         request: Request<ChallengeRequest>,
     ) -> Result<Response<ChallengeResponse>, Status> {
         let request: ChallengeRequest = request.into_inner();
-        let tee = to_kbs_tee(
-            GrpcTee::from_i32(request.tee)
-                .ok_or_else(|| Status::aborted(format!("Invalid TEE {}", request.tee)))?,
-        );
+        let tee = to_kbs_tee(&request.tee)
+            .map_err(|e| Status::aborted(format!("parse TEE type: {e}")))?;
 
         let attestation_challenge = self
             .read()
