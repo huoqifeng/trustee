@@ -1,7 +1,7 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use actix_web::{body::BoxBody, web, HttpRequest, HttpResponse, ResponseError};
-use anyhow::{bail, Context};
+use anyhow::{anyhow, bail, Context};
 use attestation_service::{AttestationService, HashAlgorithm};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use kbs_types::Tee;
@@ -46,8 +46,10 @@ pub struct AttestationRequest {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ChallengeRequest {
-    tee: String,
-    tee_params: String,
+    // tee: String,
+    // tee_params: String,
+    #[serde(flatten)]
+    inner: HashMap<String, String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -191,11 +193,26 @@ pub async fn get_challenge(
     request: web::Json<ChallengeRequest>,
     cocoas: web::Data<Arc<RwLock<AttestationService>>>,
 ) -> Result<HttpResponse> {
-    let tee = to_tee(&request.tee)?;
+    info!("get_challenge API called.");
+    let request: ChallengeRequest = request.into_inner();
+
+    debug!("get_challenge: {request:#?}");
+    let inner_tee = request
+        .inner
+        .get("tee")
+        .as_ref()
+        .map(|s| s.as_str())
+        .ok_or(anyhow!("Failed to get inner tee"))?;
+    let tee_params = request
+        .inner
+        .get("tee_params")
+        .ok_or(anyhow!("Failed to get inner tee_params"))?;
+
+    let tee = to_tee(inner_tee)?;
     let challenge = cocoas
         .read()
         .await
-        .generate_supplemental_challenge(tee, request.tee_params.clone())
+        .generate_supplemental_challenge(tee, tee_params.to_string())
         .await
         .context("generate challenge")?;
     Ok(HttpResponse::Ok().body(challenge))

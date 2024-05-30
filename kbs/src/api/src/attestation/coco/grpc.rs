@@ -11,6 +11,7 @@ use log::info;
 use mobc::{Manager, Pool};
 use serde::Deserialize;
 use serde_json::json;
+use std::collections::HashMap;
 use tokio::sync::Mutex;
 use tonic::transport::Channel;
 
@@ -27,22 +28,6 @@ pub const DEFAULT_AS_ADDR: &str = "http://127.0.0.1:50004";
 pub const DEFAULT_POOL_SIZE: u64 = 100;
 
 pub const COCO_AS_HASH_ALGORITHM: &str = "sha384";
-
-fn to_grpc_tee(tee: Tee) -> Option<String> {
-    match tee {
-        Tee::AzSnpVtpm => Some(String::from("azsnpvtpm")),
-        Tee::AzTdxVtpm => Some(String::from("aztdxvtpm")),
-        Tee::Cca => Some(String::from("cca")),
-        Tee::Csv => Some(String::from("csv")),
-        Tee::Sample => Some(String::from("sample")),
-        Tee::Sev => Some(String::from("sev")),
-        Tee::Sgx => Some(String::from("sgx")),
-        Tee::Snp => Some(String::from("snp")),
-        Tee::Tdx => Some(String::from("tdx")),
-        Tee::Se => Some(String::from("se")),
-        _ => None,
-    }
-}
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct GrpcConfig {
@@ -140,11 +125,15 @@ impl Attest for GrpcClientPool {
         tee: Tee,
         tee_parameters: String,
     ) -> Result<String> {
-        let grpc_tee = to_grpc_tee(tee).unwrap();
-        let req = tonic::Request::new(ChallengeRequest {
-            tee: grpc_tee,
-            tee_params: tee_parameters,
-        });
+        let tee = serde_json::to_string(&tee)
+            .context("CoCo AS client: serialize tee type failed.")?
+            .trim_end_matches('"')
+            .trim_start_matches('"')
+            .to_string();
+        let mut inner = HashMap::new();
+        inner.insert(String::from("tee"), tee);
+        inner.insert(String::from("tee_params"), tee_parameters);
+        let req = tonic::Request::new(ChallengeRequest { inner });
 
         let mut client = { self.pool.lock().await.get().await? };
 

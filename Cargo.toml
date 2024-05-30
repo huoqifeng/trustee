@@ -37,8 +37,8 @@ prost = "0.11.0"
 regorus = { version = "0.1.5", default-features = false, features = ["regex", "base64", "time"] }
 rstest = "0.18.1"
 serde = { version = "1.0", features = ["derive"] }
-serde_with = { version = "1.11.0", features = ["base64"] }
 serde_json = "1.0.89"
+serde_with = { version = "1.11.0", features = ["base64"] }
 serial_test = "0.9.0"
 sha2 = "0.10"
 shadow-rs = "0.19.0"
@@ -48,4 +48,3 @@ tokio = { version = "1.23.0", features = ["full"] }
 tempfile = "3.4.0"
 tonic = "0.8.1"
 tonic-build = "0.8.0"
-s390_pv = "0.10.0"

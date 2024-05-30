@@ -5457,6 +5457,7 @@ dependencies = [
  "jsonwebkey",
  "jsonwebtoken",
  "kbs-types 0.6.0",
+ "lazy_static",
  "log",
  "openssl",
  "rstest",

@@ -2,19 +2,6 @@ syntax = "proto3";
 
 package attestation;
 
-enum Tee {
-    SEV = 0;
-    SGX = 1;
-    SNP = 2;
-    TDX = 3;
-    Sample = 4;
-    AzSnpVtpm = 5;
-    CSV = 6;
-    CCA = 7;
-    AzTdxVtpm = 8;
-    Se = 9;
-}
-
 message AttestationRequest {
     // TEE enum. Specify the evidence type
     string tee = 1;
@@ -91,9 +78,9 @@ message SetPolicyRequest {
 message SetPolicyResponse {}
 
 message ChallengeRequest {
-    // TEE enum. Specify the evidence type
-    string tee = 1;
-    string tee_params = 2;
+    // string tee = 1;
+    // string tee_params = 2;
+    map<string, string> inner = 1;
 }
 message ChallengeResponse {
     string attestation_challenge = 1;

@@ -174,7 +174,6 @@ pub trait Verifier {
     /// generate the evidence
     ///
     /// A optional `tee_parameters` comes from the attester side as the input.
-
     async fn generate_supplemental_challenge(
         &self,
         _tee_parameters: String,

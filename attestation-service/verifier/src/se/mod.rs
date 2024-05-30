@@ -7,19 +7,69 @@ use super::*;
 use crate::se::ibmse::SeAttestationClaims;
 use crate::{InitDataHash, ReportData};
 use async_trait::async_trait;
-use std::fs;
+use core::result::Result::Ok;
+use std::{env, fs};
 
 pub mod ibmse;
 
-const SE_HOST_KEY_DOCUMENTS_ROOT: &str = "/run/confidential-containers/ibmse/hkds";
-const SE_CERTIFICATES_ROOT: &str = "/run/confidential-containers/ibmse/certs";
-const SE_CERTIFICATE_ROOT_CA: &str = "/run/confidential-containers/ibmse/certs/ca";
-const SE_CERTIFICATE_REVOCATION_LISTS_ROOT: &str = "/run/confidential-containers/ibmse/crls";
-const SE_IMAGE_HEADER_FILE: &str = "/run/confidential-containers/ibmse/hdr/hdr.bin";
-const SE_MEASUREMENT_ENCR_KEY_PRIVATE: &str =
+const DEFAULT_SE_HOST_KEY_DOCUMENTS_ROOT: &str = "/run/confidential-containers/ibmse/hkds";
+const DEFAULT_SE_CERTIFICATES_ROOT: &str = "/run/confidential-containers/ibmse/certs";
+const DEFAULT_SE_CERTIFICATE_ROOT_CA: &str = "/run/confidential-containers/ibmse/certs/ca";
+const DEFAULT_SE_CERTIFICATE_REVOCATION_LISTS_ROOT: &str = "/run/confidential-containers/ibmse/crls";
+const DEFAULT_SE_IMAGE_HEADER_FILE: &str = "/run/confidential-containers/ibmse/hdr/hdr.bin";
+const DEFAULT_SE_MEASUREMENT_ENCR_KEY_PRIVATE: &str =
     "/run/confidential-containers/ibmse/rsa/encrypt_key.pem";
-const SE_MEASUREMENT_ENCR_KEY_PUBLIC: &str =
+const DEFAULT_SE_MEASUREMENT_ENCR_KEY_PUBLIC: &str =
     "/run/confidential-containers/ibmse/rsa/encrypt_key.pub";
+
+fn get_hkds_root() -> String {
+    if let Ok(env_path) = env::var("SE_HOST_KEY_DOCUMENTS_ROOT") {
+        return env_path;
+    }
+    DEFAULT_SE_HOST_KEY_DOCUMENTS_ROOT.into()
+}
+
+fn get_certs_root() -> String {
+    if let Ok(env_path) = env::var("SE_CERTIFICATES_ROOT") {
+        return env_path;
+    }
+    DEFAULT_SE_CERTIFICATES_ROOT.into()
+}
+
+fn get_root_ca_file() -> String {
+    if let Ok(env_path) = env::var("SE_CERTIFICATE_ROOT_CA") {
+        return env_path;
+    }
+    DEFAULT_SE_CERTIFICATE_ROOT_CA.into()
+}
+
+fn get_crls_root() -> String {
+    if let Ok(env_path) = env::var("SE_CERTIFICATE_REVOCATION_LISTS_ROOT") {
+        return env_path;
+    }
+    DEFAULT_SE_CERTIFICATE_REVOCATION_LISTS_ROOT.into()
+}
+
+fn get_img_hdr_file() -> String {
+    if let Ok(env_path) = env::var("SE_IMAGE_HEADER_FILE") {
+        return env_path;
+    }
+    DEFAULT_SE_IMAGE_HEADER_FILE.into()
+}
+
+fn get_encrypt_priv_keyfile() -> String {
+    if let Ok(env_path) = env::var("SE_MEASUREMENT_ENCR_KEY_PRIVATE") {
+        return env_path;
+    }
+    DEFAULT_SE_MEASUREMENT_ENCR_KEY_PRIVATE.into()
+}
+
+fn get_encrypt_pub_keyfile() -> String {
+    if let Ok(env_path) = env::var("SE_MEASUREMENT_ENCR_KEY_PUBLIC") {
+        return env_path;
+    }
+    DEFAULT_SE_MEASUREMENT_ENCR_KEY_PUBLIC.into()
+}
 
 fn list_files_in_folder(dir: &str) -> Result<Vec<String>> {
     let mut file_paths = Vec::new();
@@ -56,19 +106,18 @@ impl Verifier for SeVerifier {
         &self,
         _tee_parameters: String,
     ) -> Result<String> {
-        let hkds = list_files_in_folder(SE_HOST_KEY_DOCUMENTS_ROOT)?;
-        let certs = list_files_in_folder(SE_CERTIFICATES_ROOT)?;
-        let crls = list_files_in_folder(SE_CERTIFICATE_REVOCATION_LISTS_ROOT)?;
-        let ca = String::from(SE_CERTIFICATE_ROOT_CA);
+        let hkds = list_files_in_folder(&get_hkds_root())?;
+        let certs = list_files_in_folder(&get_certs_root())?;
+        let crls = list_files_in_folder(&get_crls_root())?;
         // challenge is Serialized SeAttestationRequest, attester uses it to do perform action
         // attester then generates and return Serialized SeAttestationResponse
         ibmse::create(
             &hkds,
             &certs,
             &crls,
-            ca,
-            SE_IMAGE_HEADER_FILE,
-            SE_MEASUREMENT_ENCR_KEY_PUBLIC,
+            get_root_ca_file(),
+            &get_img_hdr_file(),
+            &get_encrypt_pub_keyfile(),
         )
     }
 }
@@ -79,7 +128,7 @@ async fn verify_evidence(
     _expected_init_data_hash: &InitDataHash<'_>,
 ) -> Result<TeeEvidenceParsedClaim> {
     // evidence is serialized SeAttestationResponse String bytes
-    let mut se_claims = ibmse::verify(evidence, SE_MEASUREMENT_ENCR_KEY_PRIVATE)?;
+    let mut se_claims = ibmse::verify(evidence, &get_encrypt_priv_keyfile())?;
     se_generate_parsed_claim(&mut se_claims).map_err(|e| anyhow!("error from se Verifier: {:?}", e))
 }
 

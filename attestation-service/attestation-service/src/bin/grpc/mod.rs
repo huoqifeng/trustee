@@ -205,14 +205,29 @@ impl AttestationService for Arc<RwLock<AttestationServer>> {
         request: Request<ChallengeRequest>,
     ) -> Result<Response<ChallengeResponse>, Status> {
         let request: ChallengeRequest = request.into_inner();
-        let tee = to_kbs_tee(&request.tee)
-            .map_err(|e| Status::aborted(format!("parse TEE type: {e}")))?;
+        info!("get_attestation_challenge API called.");
+        debug!("get_attestation_challenge: {request:#?}");
+
+        let inner_tee = request
+            .inner
+            .get("tee")
+            .map_or(Err(Status::aborted("Error parse inner_tee tee")), Ok)?;
+        let tee_params = request
+            .inner
+            .get("tee_params")
+            .map_or(Err(Status::aborted("Error parse inner_tee tee_params")), Ok)?;
+        let tee = to_kbs_tee(&inner_tee).map_or(
+            Err(Status::aborted(format!(
+                "Error parse TEE type: {inner_tee}"
+            ))),
+            Ok,
+        )?;
 
         let attestation_challenge = self
             .read()
             .await
             .attestation_service
-            .generate_supplemental_challenge(tee, request.tee_params.clone())
+            .generate_supplemental_challenge(tee, tee_params.clone())
             .await
             .map_err(|e| Status::aborted(format!("Challenge: {e:?}")))?;
 

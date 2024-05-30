@@ -96,10 +96,11 @@ Note: The TD Report and TD Quote are fetched during early boot in this TEE. Kern
 ## IBM Secure Execution (SE)
 - `se.version`: The version this quote structure.
 - `se.cuid`: The config uid.
-- `se.hdr.tag`: SE Header Tag (seht)
-- `se.image.phkh`: SE image Public host key hash
-- `se.attestation.phkh`: SE attestation Public host key hash
+- `se.hdr.tag`: SE header tag (seht)
+- `se.image.phkh`: SE image public host key hash
+- `se.attestation.phkh`: SE attestation public host key hash
 - `se.user_data`: Custom attestation key owner data.
+
 ## AMD SEV-SNP
 
 - `snp.measurement` Launch Digest covering initial guest memory

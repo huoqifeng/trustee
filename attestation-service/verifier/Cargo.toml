@@ -34,6 +34,7 @@ hex.workspace = true
 jsonwebkey = "0.3.5"
 jsonwebtoken = { workspace = true, default-features = false, optional = true }
 kbs-types.workspace = true
+lazy_static = "1.4.0"
 log.workspace = true
 openssl = { version = "0.10.55", optional = true }
 pv = { version = "0.10.0", package = "s390_pv" }

@@ -3,8 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use anyhow::{anyhow, Result};
-use log::{debug, warn};
+extern crate lazy_static;
+use anyhow::{anyhow, bail, Result};
+use log::{debug, info, warn};
 use openssl::{
     encrypt::{Decrypter, Encrypter},
     pkey::{PKey, Private, Public},
@@ -22,30 +23,52 @@ use pv::{
 use serde::{Deserialize, Serialize};
 use serde_json;
 use serde_with::{base64::Base64, serde_as};
-use std::{fs::File, io::Read};
+use std::{fs::File, io, io::Read, sync::Mutex};
 
-fn encrypt_measurement_key(key: &[u8], rsa_public_key: &PKey<Public>) -> Vec<u8> {
-    let mut encrypter = Encrypter::new(rsa_public_key).unwrap();
-    encrypter.set_rsa_padding(Padding::PKCS1).unwrap();
-
-    let buffer_len = encrypter.encrypt_len(key).unwrap();
-    let mut encrypted_hmac_key = vec![0; buffer_len];
-    let len = encrypter.encrypt(key, &mut encrypted_hmac_key).unwrap();
-    encrypted_hmac_key.truncate(len);
-
-    encrypted_hmac_key
+lazy_static::lazy_static! {
+    static ref PUB_KEY_FILE_CONTENTS: Mutex<Option<Vec<u8>>> = Mutex::new(None);
+    static ref PRI_KEY_FILE_CONTENTS: Mutex<Option<Vec<u8>>> = Mutex::new(None);
 }
 
-fn decrypt_measurement_key(key: &[u8], rsa_private_key: &PKey<Private>) -> Vec<u8> {
-    let mut decrypter = Decrypter::new(rsa_private_key).unwrap();
-    decrypter.set_rsa_padding(Padding::PKCS1).unwrap();
+fn get_cached_file_or_read(filename: &str, content_ref: &Mutex<Option<Vec<u8>>>) -> io::Result<Vec<u8>> {
+    let mut guard = content_ref.lock().unwrap();
+    if let Some(contents) = guard.as_ref().cloned() {
+        info!("Reading key_file contents from cache.");
+        Ok(contents)
+    } else {
+        info!("Reading key_file contents from file.");
+        let mut file = File::open(filename)?;
+        let mut contents = vec![];
+        file.read_to_end(&mut contents)?;
+        *guard = Some(contents.clone());
+        Ok(contents)
+    }
+}
 
-    let buffer_len = decrypter.decrypt_len(key).unwrap();
+fn encrypt_measurement_key(key: &[u8], rsa_public_key: &PKey<Public>) -> Result<Vec<u8>> {
+    info!("encrypt_measurement_key.");
+    let mut encrypter = Encrypter::new(rsa_public_key)?;
+    encrypter.set_rsa_padding(Padding::PKCS1)?;
+
+    let buffer_len = encrypter.encrypt_len(key)?;
+    let mut encrypted_hmac_key = vec![0; buffer_len];
+    let len = encrypter.encrypt(key, &mut encrypted_hmac_key)?;
+    encrypted_hmac_key.truncate(len);
+
+    Ok(encrypted_hmac_key)
+}
+
+fn decrypt_measurement_key(key: &[u8], rsa_private_key: &PKey<Private>) -> Result<Vec<u8>> {
+    info!("decrypt_measurement_key.");
+    let mut decrypter = Decrypter::new(rsa_private_key)?;
+    decrypter.set_rsa_padding(Padding::PKCS1)?;
+
+    let buffer_len = decrypter.decrypt_len(key)?;
     let mut decrypted_hmac_key = vec![0; buffer_len];
-    let decrypted_len = decrypter.decrypt(key, &mut decrypted_hmac_key).unwrap();
+    let decrypted_len = decrypter.decrypt(key, &mut decrypted_hmac_key)?;
     decrypted_hmac_key.truncate(decrypted_len);
 
-    decrypted_hmac_key
+    Ok(decrypted_hmac_key)
 }
 
 #[serde_as]
@@ -87,14 +110,6 @@ pub struct SeAttestationRequest {
 }
 
 impl SeAttestationRequest {
-    pub fn from_slice(request: &[u8]) -> Result<Self> {
-        Ok(serde_json::from_slice(request).unwrap())
-    }
-
-    pub fn from_string(request: &str) -> Result<Self> {
-        Ok(serde_json::from_str(request).unwrap())
-    }
-
     pub fn create(
         hkds: &Vec<String>,
         certs: &Vec<String>,
@@ -121,25 +136,27 @@ impl SeAttestationRequest {
             if certs.len() != 1 {
                 warn!("The host key document in '{hkd}' contains more than one certificate!")
             }
-            // Panic: len is == 1 -> unwrap will succeed/not panic
-            let c = certs.first().unwrap();
+            let c = certs
+                .first()
+                .ok_or(anyhow!("File does not contain a X509 certificate"))?;
             verifier.verify(c)?;
             arcb.add_hostkey(c.public_key()?);
         }
         let encr_ctx = ReqEncrCtx::random(SymKeyType::Aes256)?;
         let request_blob = arcb.encrypt(&encr_ctx)?;
-        
-        let mut file = File::open(pub_key_file)?;
-        let mut contents = vec![];
-        file.read_to_end(&mut contents)?;
+        let contents = get_cached_file_or_read(pub_key_file, &PUB_KEY_FILE_CONTENTS)?;
         let rsa = Rsa::public_key_from_pem(&contents)?;
         let rsa_public_key = &PKey::from_rsa(rsa)?;
 
         let conf_data = arcb.confidential_data();
         let encr_measurement_key =
-            encrypt_measurement_key(conf_data.measurement_key(), rsa_public_key);
-        let encr_request_nonce =
-            encrypt_measurement_key(conf_data.nonce().clone().unwrap().value(), rsa_public_key);
+            encrypt_measurement_key(conf_data.measurement_key(), rsa_public_key)?;
+        let binding = conf_data
+            .nonce()
+            .clone()
+            .ok_or(anyhow!("Failed to get nonce binding"))?;
+        let nonce = binding.value();
+        let encr_request_nonce = encrypt_measurement_key(nonce, rsa_public_key)?;
 
         Ok(Self {
             request_blob,
@@ -172,55 +189,22 @@ pub struct SeAttestationResponse {
 }
 
 impl SeAttestationResponse {
-    pub fn from_slice(response: &[u8]) -> Result<Self> {
-        Ok(serde_json::from_slice(response).unwrap())
-    }
-
-    pub fn from_string(request: &str) -> Result<Self> {
-        Ok(serde_json::from_str(request).unwrap())
-    }
-
-    pub fn create(
-        measurement: &[u8],
-        additional_data: &[u8],
-        user_data: &[u8],
-        cuid: &ConfigUid,
-        encr_measurement_key: &[u8],
-        encr_request_nonce: &[u8],
-        image_hdr_tags: &BootHdrTags,
-    ) -> Result<Self> {
-        Ok(Self {
-            measurement: measurement.to_vec(),
-            additional_data: additional_data.to_vec(),
-            user_data: user_data.to_vec(),
-            cuid: *cuid,
-            encr_measurement_key: encr_measurement_key.to_vec(),
-            encr_request_nonce: encr_request_nonce.to_vec(),
-            image_hdr_tags: *image_hdr_tags,
-        })
-    }
-
     pub fn verify(&self, priv_key_file: &str) -> Result<SeAttestationClaims> {
-        let mut file = File::open(priv_key_file)?;
-        let mut contents = vec![];
-        file.read_to_end(&mut contents)?;
+        let contents = get_cached_file_or_read(priv_key_file, &PRI_KEY_FILE_CONTENTS)?;
 
         let rsa = Rsa::private_key_from_pem(&contents)?;
         let rsa_private_key = &PKey::from_rsa(rsa)?;
 
-        let meas_key = decrypt_measurement_key(&self.encr_measurement_key, rsa_private_key);
-        let nonce = decrypt_measurement_key(&self.encr_request_nonce, rsa_private_key);
+        let meas_key = decrypt_measurement_key(&self.encr_measurement_key, rsa_private_key)?;
+        let nonce = decrypt_measurement_key(&self.encr_request_nonce, rsa_private_key)?;
 
         if nonce.len() != 16 {
-            return Err(anyhow!("The nonce vector must have exactly 16 elements."));
+            bail!("The nonce vector must have exactly 16 elements.");
         }
-        let boxed_slice: Box<[u8]> = nonce.into_boxed_slice();
-        let boxed_array: Box<[u8; 16]> = match boxed_slice.try_into() {
-            Ok(ba) => ba,
-            Err(_) => return Err(anyhow!("Failed to convert nonce from Vec<u8> to [u8; 16].")),
-        };
-        let nonce_array: [u8; 16] = *boxed_array;
 
+        let nonce_array: [u8; 16] = nonce
+            .try_into()
+            .map_err(|_| anyhow!("Failed to convert nonce from Vec<u8> to [u8; 16]."))?;
         let meas_key = &PKey::hmac(&meas_key)?;
         let items = AttestationItems::new(
             &self.image_hdr_tags,
@@ -231,14 +215,13 @@ impl SeAttestationResponse {
         );
 
         let measurement =
-            AttestationMeasurement::calculate(items, AttestationMeasAlg::HmacSha512, meas_key)
-                .unwrap();
+            AttestationMeasurement::calculate(items, AttestationMeasAlg::HmacSha512, meas_key)?;
 
         if !measurement.eq_secure(&self.measurement) {
             debug!("Recieved: {:?}", self.measurement);
             debug!("Calculated: {:?}", measurement.as_ref());
             warn!("Attestation measurement verification failed. Calculated and received attestation measurement are not equal.");
-            return Err(anyhow!("Failed to verify the measurement!"));
+            bail!("Failed to verify the measurement!");
         }
         
         // let userdata = serde_json::from_slice(&self.user_data)?;
@@ -279,6 +262,7 @@ pub fn create(
     se_img_hdr: &str,
     pub_key_file: &str,
 ) -> Result<String> {
+    info!("IBM SE create API called.");
     debug!("hkds: {:#?}", hkds);
     debug!("certs: {:#?}", certs);
     debug!("ca: {:#?}", ca);
@@ -286,7 +270,7 @@ pub fn create(
     debug!("pub_key_file: {:#?}", pub_key_file);
 
     let mut hdr_file = open_file(se_img_hdr)?;
-    let mut image_hdr_tags = BootHdrTags::from_se_image(&mut hdr_file).unwrap();
+    let mut image_hdr_tags = BootHdrTags::from_se_image(&mut hdr_file)?;
     let root_ca = Some(ca);
 
     let se_request = SeAttestationRequest::create(
@@ -296,8 +280,7 @@ pub fn create(
         root_ca,
         &mut image_hdr_tags,
         pub_key_file,
-    )
-    .unwrap();
+    )?;
 
     let challenge = serde_json::to_string(&se_request)?;
     debug!("challenge json: {:#?}", challenge);
@@ -306,10 +289,11 @@ pub fn create(
 }
 
 pub fn verify(response: &[u8], priv_key_file: &str) -> Result<SeAttestationClaims> {
+    info!("IBM SE verify API called.");
     // response is serialized SeAttestationResponse String bytes
     let response_str = std::str::from_utf8(response)?;
     debug!("SeAttestationResponse json: {:#?}", response_str);
-    let se_response = SeAttestationResponse::from_string(response_str)?;
+    let se_response: SeAttestationResponse = serde_json::from_str(response_str)?;
 
     let claims = se_response.verify(priv_key_file)?;
     debug!("claims json: {:#?}", claims);
