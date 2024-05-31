@@ -23,15 +23,16 @@ use pv::{
 use serde::{Deserialize, Serialize};
 use serde_json;
 use serde_with::{base64::Base64, serde_as};
-use std::{fs::File, io, io::Read, sync::Mutex};
+use std::{fs::File, io::Read, sync::Mutex};
 
 lazy_static::lazy_static! {
     static ref PUB_KEY_FILE_CONTENTS: Mutex<Option<Vec<u8>>> = Mutex::new(None);
     static ref PRI_KEY_FILE_CONTENTS: Mutex<Option<Vec<u8>>> = Mutex::new(None);
 }
 
-fn get_cached_file_or_read(filename: &str, content_ref: &Mutex<Option<Vec<u8>>>) -> io::Result<Vec<u8>> {
-    let mut guard = content_ref.lock().unwrap();
+fn get_cached_file_or_read(filename: &str, content_ref: &Mutex<Option<Vec<u8>>>) -> Result<Vec<u8>> {
+    let mut guard = content_ref.lock().map_err(|_| anyhow!("Failed to acquire lock"))?;
+
     if let Some(contents) = guard.as_ref().cloned() {
         info!("Reading key_file contents from cache.");
         Ok(contents)
@@ -78,6 +79,7 @@ pub struct UserData {
     image_btph: Vec<u8>,
 }
 
+#[repr(C)]
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SeAttestationClaims {
@@ -224,9 +226,7 @@ impl SeAttestationResponse {
             bail!("Failed to verify the measurement!");
         }
         
-        // let userdata = serde_json::from_slice(&self.user_data)?;
-        // debug!("user_data: {:?}", userdata);
-        // TODO check UserData.image_btph with previous saved value
+        // TODO check self.user_data.image_btph with previous saved value
 
         let mut att_flags = AttestationFlags::default();
         att_flags.set_image_phkh();

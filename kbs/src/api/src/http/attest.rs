@@ -26,7 +26,9 @@ pub(crate) async fn auth(
     let extra_params = attestation_service
         .generate_supplemental_challenge(request.tee, request.extra_params.clone())
         .await
-        .unwrap();
+        .map_err(|e| {
+            Error::FailedAuthentication(format!("generate_supplemental_challenge: {e:?}"))
+        })?;
 
     let session = SessionStatus::auth(request.0, **timeout, extra_params)
         .map_err(|e| Error::FailedAuthentication(format!("Session: {e}")))?;

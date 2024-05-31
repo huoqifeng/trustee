@@ -211,17 +211,13 @@ impl AttestationService for Arc<RwLock<AttestationServer>> {
         let inner_tee = request
             .inner
             .get("tee")
-            .map_or(Err(Status::aborted("Error parse inner_tee tee")), Ok)?;
+            .ok_or(Status::aborted("Error parse inner_tee tee"))?;
         let tee_params = request
             .inner
             .get("tee_params")
             .map_or(Err(Status::aborted("Error parse inner_tee tee_params")), Ok)?;
-        let tee = to_kbs_tee(&inner_tee).map_or(
-            Err(Status::aborted(format!(
-                "Error parse TEE type: {inner_tee}"
-            ))),
-            Ok,
-        )?;
+        let tee = to_kbs_tee(&inner_tee)
+            .map_err(|e| Status::aborted(format!("Error parse TEE type: {e}")))?;
 
         let attestation_challenge = self
             .read()

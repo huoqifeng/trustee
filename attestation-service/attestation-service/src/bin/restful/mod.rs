@@ -46,8 +46,8 @@ pub struct AttestationRequest {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ChallengeRequest {
-    // tee: String,
-    // tee_params: String,
+    // ChallengeRequest uses HashMap to pass variables like:
+    // tee, tee_params etc
     #[serde(flatten)]
     inner: HashMap<String, String>,
 }

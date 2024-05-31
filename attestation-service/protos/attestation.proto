@@ -78,8 +78,8 @@ message SetPolicyRequest {
 message SetPolicyResponse {}
 
 message ChallengeRequest {
-    // string tee = 1;
-    // string tee_params = 2;
+    // ChallengeRequest uses HashMap to pass variables like:
+    // tee, tee_params etc
     map<string, string> inner = 1;
 }
 message ChallengeResponse {
