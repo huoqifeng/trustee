@@ -112,7 +112,6 @@ pub fn to_verifier(tee: &Tee) -> Result<Box<dyn Verifier + Send + Sync>> {
                 }
             }
         }
-
     }
 }
 
@@ -168,16 +167,13 @@ pub trait Verifier {
     ) -> Result<TeeEvidenceParsedClaim>;
 
     /// Generate the supplemental challenge
-    /// 
+    ///
     /// Some TEE like IBM SE need a `challenge` generated on verifier side
     /// and pass it to attester side. This challenge is used by attester to
     /// generate the evidence
     ///
     /// A optional `tee_parameters` comes from the attester side as the input.
-    async fn generate_supplemental_challenge(
-        &self,
-        _tee_parameters: String,
-    ) -> Result<String> {
+    async fn generate_supplemental_challenge(&self, _tee_parameters: String) -> Result<String> {
         Ok(String::new())
     }
 }
