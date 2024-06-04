@@ -23,14 +23,12 @@ pub(crate) async fn auth(
     info!("Auth API called.");
     debug!("Auth Request: {:?}", &request);
 
-    let extra_params = attestation_service
-        .generate_supplemental_challenge(request.tee, request.extra_params.clone())
+    let challenge = attestation_service
+        .generate_challenge(request.tee, request.extra_params.clone())
         .await
-        .map_err(|e| {
-            Error::FailedAuthentication(format!("generate_supplemental_challenge: {e:?}"))
-        })?;
+        .map_err(|e| Error::FailedAuthentication(format!("generate challenge: {e:?}")))?;
 
-    let session = SessionStatus::auth(request.0, **timeout, extra_params)
+    let session = SessionStatus::auth(request.0, **timeout, challenge)
         .map_err(|e| Error::FailedAuthentication(format!("Session: {e}")))?;
 
     let response = HttpResponse::Ok()
