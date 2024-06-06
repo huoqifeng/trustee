@@ -51,9 +51,7 @@ fn list_files_in_folder(dir: &str) -> Result<Vec<String>> {
     let mut file_paths = Vec::new();
 
     for entry in fs::read_dir(dir)? {
-        let entry = entry?;
-        let path = entry.path();
-
+        let path = entry?.path();
         if path.is_file() {
             if let Some(path_str) = path.to_str() {
                 file_paths.push(path_str.to_string());
@@ -64,6 +62,7 @@ fn list_files_in_folder(dir: &str) -> Result<Vec<String>> {
     Ok(file_paths)
 }
 
+#[repr(C)]
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SeAttestationResponse {
@@ -100,6 +99,7 @@ pub struct SeAttestationClaims {
     tag: [u8; 16],
 }
 
+#[repr(C)]
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SeAttestationRequest {
@@ -116,12 +116,12 @@ pub struct SeAttestationRequest {
 }
 
 #[derive(Debug)]
-pub struct RealSeVerifier {
+pub struct VERIFIER {
     rsa_private_key: PKey<Private>,
     rsa_public_key: PKey<Public>,
 }
 
-impl RealSeVerifier {
+impl VERIFIER {
     pub fn new() -> Result<Self> {
         let pri_key_file = env_or_default!(
             "SE_MEASUREMENT_ENCR_KEY_PRIVATE",
@@ -150,11 +150,11 @@ impl RealSeVerifier {
         decrypter.set_rsa_padding(Padding::PKCS1)?;
 
         let buffer_len = decrypter.decrypt_len(ciphertext)?;
-        let mut decrypted_hmac_key = vec![0; buffer_len];
-        let decrypted_len = decrypter.decrypt(ciphertext, &mut decrypted_hmac_key)?;
-        decrypted_hmac_key.truncate(decrypted_len);
+        let mut decrypted = vec![0; buffer_len];
+        let decrypted_len = decrypter.decrypt(ciphertext, &mut decrypted)?;
+        decrypted.truncate(decrypted_len);
 
-        Ok(decrypted_hmac_key)
+        Ok(decrypted)
     }
 
     fn encrypt(&self, text: &[u8]) -> Result<Vec<u8>> {
@@ -162,11 +162,11 @@ impl RealSeVerifier {
         encrypter.set_rsa_padding(Padding::PKCS1)?;
     
         let buffer_len = encrypter.encrypt_len(text)?;
-        let mut encrypted_hmac_key = vec![0; buffer_len];
-        let len = encrypter.encrypt(text, &mut encrypted_hmac_key)?;
-        encrypted_hmac_key.truncate(len);
+        let mut encrypted = vec![0; buffer_len];
+        let len = encrypter.encrypt(text, &mut encrypted)?;
+        encrypted.truncate(len);
     
-        Ok(encrypted_hmac_key)
+        Ok(encrypted)
     }
 
     pub fn evaluate(&self, evidence: &[u8]) -> Result<TeeEvidenceParsedClaim> {
@@ -182,13 +182,9 @@ impl RealSeVerifier {
             .decrypt(&se_response.encr_request_nonce)
             .context("decrypt Request Nonce")?;
 
-        if nonce.len() != 16 {
-            bail!("The nonce vector must have exactly 16 elements.");
-        }
-
         let nonce_array: [u8; 16] = nonce
             .try_into()
-            .map_err(|_| anyhow!("Failed to convert nonce from Vec<u8> to [u8; 16]."))?;
+            .map_err(|_| anyhow!("Failed to convert nonce from Vec<u8> to [u8; 16], It must have exactly 16 elements."))?;
 
         let meas_key = PKey::hmac(&meas_key)?;
         let items = AttestationItems::new(
@@ -205,11 +201,8 @@ impl RealSeVerifier {
         if !measurement.eq_secure(&se_response.measurement) {
             debug!("Recieved: {:?}", se_response.measurement);
             debug!("Calculated: {:?}", measurement.as_ref());
-            warn!("Attestation measurement verification failed. Calculated and received attestation measurement are not equal.");
             bail!("Failed to verify the measurement!");
         }
-
-        // TODO check self.user_data.image_btph with previous saved value
 
         let mut att_flags = AttestationFlags::default();
         att_flags.set_image_phkh();
@@ -222,8 +215,6 @@ impl RealSeVerifier {
         let attestation_phkh = add_data
             .attestation_public_host_key_hash()
             .ok_or(anyhow!("Failed to get attestation_public_host_key_hash."))?;
-
-        // TODO image_phkh and attestation_phkh with previous saved value
 
         let claims = SeAttestationClaims {
             cuid: se_response.cuid,
@@ -253,10 +244,13 @@ impl RealSeVerifier {
         let verifier =
             CertVerifier::new(certs.as_slice(), crls.as_slice(), Some(root_ca_path), false)?;
 
+        let mut attestation_flags = AttestationFlags::default();
+        attestation_flags.set_image_phkh();
+        attestation_flags.set_attest_phkh();
         let mut arcb = AttestationRequest::new(
             AttestationVersion::One,
             AttestationMeasAlg::HmacSha512,
-            AttestationFlags::default(),
+            attestation_flags,
         )?;
 
         let hkds_root = env_or_default!(

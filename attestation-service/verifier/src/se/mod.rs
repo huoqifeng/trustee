@@ -5,15 +5,14 @@
 
 use anyhow::Result;
 use async_trait::async_trait;
-use ibmse::RealSeVerifier;
-use log::warn;
+use ibmse::VERIFIER;
 use tokio::sync::OnceCell;
 
 use crate::{InitDataHash, ReportData, TeeEvidenceParsedClaim, Verifier};
 
 pub mod ibmse;
 
-static ONCE: OnceCell<RealSeVerifier> = OnceCell::const_new();
+static ONCE: OnceCell<VERIFIER> = OnceCell::const_new();
 
 #[derive(Debug, Default)]
 pub struct SeVerifier;
@@ -27,9 +26,9 @@ impl Verifier for SeVerifier {
         _expected_init_data_hash: &InitDataHash,
     ) -> Result<TeeEvidenceParsedClaim> {
         let se_verifier = ONCE
-            .get_or_try_init(|| async { RealSeVerifier::new() })
+            .get_or_try_init(|| async { VERIFIER::new() })
             .await?;
-        warn!("IBM SE does not support initdata.");
+        // IBM SE does not support ReportData and InitDataHash so far.
         se_verifier.evaluate(evidence)
     }
 
@@ -38,7 +37,7 @@ impl Verifier for SeVerifier {
         _tee_parameters: String,
     ) -> Result<String> {
         let se_verifier = ONCE
-            .get_or_try_init(|| async { RealSeVerifier::new() })
+            .get_or_try_init(|| async { VERIFIER::new() })
             .await?;
         se_verifier.generate_supplemental_challenge(_tee_parameters).await
     }
