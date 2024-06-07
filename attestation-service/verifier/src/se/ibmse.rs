@@ -7,6 +7,7 @@ use crate::TeeEvidenceParsedClaim;
 use anyhow::{anyhow, bail, Context, Result};
 use core::result::Result::Ok;
 use log::{debug, info, warn};
+use openssl::ec::{EcGroup, EcKey};
 use openssl::encrypt::{Decrypter, Encrypter};
 use openssl::pkey::{PKey, Private, Public};
 use openssl::rsa::{Padding, Rsa};
@@ -117,8 +118,13 @@ pub struct SeAttestationRequest {
 
 #[derive(Debug)]
 pub struct VERIFIER {
-    rsa_private_key: PKey<Private>,
-    rsa_public_key: PKey<Public>,
+    // EC key pair using SPEC 521R1 curve, loaded from file for HA and stateless, example:
+    // let group = EcGroup::from_curve_name(openssl::nid::Nid::X9_62_PRIME_521V1).unwrap();
+    // let mut ctx = BigNumContext::new().unwrap();
+    // let key = EcKey::generate(&group).unwrap();
+    // let pkey = PKey::from_ec_key(key).unwrap();
+    private_key: PKey<openssl::ec::EcKey<Private>>,
+    public_key: PKey<openssl::ec::EcKey<Public>,
 }
 
 impl VERIFIER {
@@ -127,45 +133,33 @@ impl VERIFIER {
             "SE_MEASUREMENT_ENCR_KEY_PRIVATE",
             DEFAULT_SE_MEASUREMENT_ENCR_KEY_PRIVATE
         );
-        let priv_contents = fs::read(pri_key_file)?;
-        let rsa_private_key = Rsa::private_key_from_pem(&priv_contents)?;
-        let rsa_private_key = PKey::from_rsa(rsa_private_key)?;
+        let mut file = std::fs::File::open(pri_key_file)?;
+        let private_key = PKey::private_key_from_pem(&mut file)?;
 
         let pub_key_file = env_or_default!(
             "SE_MEASUREMENT_ENCR_KEY_PUBLIC",
             DEFAULT_SE_MEASUREMENT_ENCR_KEY_PUBLIC
         );
-        let pub_contents = fs::read(pub_key_file)?;
-        let rsa = Rsa::public_key_from_pem(&pub_contents)?;
-        let rsa_public_key = PKey::from_rsa(rsa)?;
+        let mut file = std::fs::File::open(pub_key_file)?;
+        let public_key = PKey::public_key_from_pem(&mut file)?;
 
         Ok(Self {
-            rsa_private_key,
-            rsa_public_key,
+            private_key,
+            public_key,
         })
     }
 
-    fn decrypt(&self, ciphertext: &[u8]) -> Result<Vec<u8>> {
-        let mut decrypter = Decrypter::new(&self.rsa_private_key)?;
-        decrypter.set_rsa_padding(Padding::PKCS1)?;
-
-        let buffer_len = decrypter.decrypt_len(ciphertext)?;
-        let mut decrypted = vec![0; buffer_len];
-        let decrypted_len = decrypter.decrypt(ciphertext, &mut decrypted)?;
-        decrypted.truncate(decrypted_len);
-
+    fn decrypt_message(&self, ciphertext: &[u8]) -> Result<Vec<u8>> {
+        let mut decrypted = vec![0; self.private_key.size() as usize];
+        let len = self.private_key.private_decrypt(ciphertext, &mut decrypted, openssl::rsa::Padding::PKCS1)?;
+        decrypted.truncate(len);
         Ok(decrypted)
     }
 
-    fn encrypt(&self, text: &[u8]) -> Result<Vec<u8>> {
-        let mut encrypter = Encrypter::new(&self.rsa_public_key)?;
-        encrypter.set_rsa_padding(Padding::PKCS1)?;
-    
-        let buffer_len = encrypter.encrypt_len(text)?;
-        let mut encrypted = vec![0; buffer_len];
-        let len = encrypter.encrypt(text, &mut encrypted)?;
+    fn encrypt(&self, plaintext: &[u8]) -> Result<Vec<u8>> {
+        let mut encrypted = vec![0; self.public_key.size() as usize];
+        let len = self.public_key.public_encrypt(plaintext, &mut encrypted, openssl::rsa::Padding::PKCS1)?;
         encrypted.truncate(len);
-    
         Ok(encrypted)
     }
 
