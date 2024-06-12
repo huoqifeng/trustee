@@ -1,0 +1,26 @@
+services:
+  web:
+    image: ghcr.io/confidential-containers/staged-images/kbs:latest
+    command: [
+        "/usr/local/bin/kbs",
+        "--config-file",
+        "/etc/kbs-config.toml",
+      ]
+    restart: always # keep the server running
+    environment:
+      - RUST_LOG=debug
+      - SE_SKIP_CERTS_VERIFICATION=true
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data/kbs-storage:/opt/confidential-containers/kbs/repository:rw
+      - ./data/attestation-service:/opt/confidential-containers/attestation-service:rw
+      - ./kbs.pem:/kbs/kbs.pem
+      - ./kbs-config.toml:/etc/kbs-config.toml
+      - ./data/hkds:/run/confidential-containers/ibmse/hkds
+      - ./data/certs:/run/confidential-containers/ibmse/certs
+      - ./data/DigiCertCA.crt:/run/confidential-containers/ibmse/DigiCertCA.crt
+      - ./data/crls:/run/confidential-containers/ibmse/crls
+      - ./data/hdr.bin:/run/confidential-containers/ibmse/hdr/hdr.bin
+      - ./data/ec-key/encrypt_key.pem:/run/confidential-containers/ibmse/ec/encrypt_key.pem
+      - ./data/ec-key/encrypt_key.pub:/run/confidential-containers/ibmse/ec/encrypt_key.pub
