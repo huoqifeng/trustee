@@ -2,10 +2,11 @@
 
 ## Generate EC keys
 ```
-openssl ecparam -list_curves |grep secp521r1
-openssl genpkey -algorithm EC -out encrypt_key.pem -pkeyopt ec_paramgen_curve:secp521r1
-openssl ec -in encrypt_key.pem -pubout -out encrypt_key.pub
+openssl genrsa -aes256 -passout pass:test1234 -out encrypt_key-psw.pem 4096
+openssl rsa -in encrypt_key-psw.pem -passin pass:test1234 -pubout -out encrypt_key.pub
+openssl rsa -in encrypt_key-psw.pem -out encrypt_key.pem
 ```
+
 
 ## Download Certs, CRLs, Root CA
 https://www.ibm.com/support/resourcelink/api/content/public/secure-execution-gen2.html
